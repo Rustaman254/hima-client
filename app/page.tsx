@@ -453,7 +453,7 @@ export default function Home() {
                 type="button"
                 onClick={(e) => {
                   if (otp.join("").length === 6)
-                    handleOtpVerification(e as any);
+                    handleOtpVerification(e as unknown as React.FormEvent<HTMLButtonElement>);
                   else toast.error("Please fill all OTP digits.");
                 }}
                 disabled={loading || otp.join("").length !== 6}
