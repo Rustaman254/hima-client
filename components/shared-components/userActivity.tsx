@@ -22,28 +22,46 @@ type ActivityRow = {
   details: string;
 };
 
-// You can call this from your API/backend
-const combineData = (claims: any[], policies: any[]) => {
-  const claimRows = claims?.map((c, idx) => ({
-    id: `claim-${c.id || idx}`,
+type ClaimInput = {
+  id: number | string;
+  dateFiled?: string;
+  date?: string;
+  status: string;
+  description?: string;
+  type?: string;
+};
+
+type PolicyInput = {
+  id: number | string;
+  issueDate?: string;
+  renewalDate?: string;
+  createdAt?: string;
+  active: boolean;
+  name?: string;
+  planType?: string;
+};
+
+const combineData = (claims: ClaimInput[] = [], policies: PolicyInput[] = []): ActivityRow[] => {
+  const claimRows = claims.map((c, idx) => ({
+    id: `claim-${c.id ?? idx}`,
     type: "claim" as const,
-    date: c.dateFiled || c.date,
+    date: c.dateFiled || c.date || "",
     action: "Claim Filed",
     status: c.status,
     details: c.description || c.type || "",
-  })) || [];
+  }));
 
-  const policyRows = policies?.map((p, idx) => ({
-    id: `policy-${p.id || idx}`,
+  const policyRows = policies.map((p, idx) => ({
+    id: `policy-${p.id ?? idx}`,
     type: "policy" as const,
-    date: p.renewalDate || p.issueDate || p.createdAt,
+    date: p.renewalDate || p.issueDate || p.createdAt || "",
     action: "Policy Active",
     status: p.active ? "Active" : "Expired",
     details: p.name || p.planType || "",
-  })) || [];
+  }));
 
   return [...claimRows, ...policyRows]
-    .sort((a, b) => (new Date(b.date).getTime() - new Date(a.date).getTime()))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .map((row, idx) => ({ ...row, id: idx + 1 }));
 };
 
@@ -96,11 +114,10 @@ export default function UserActivityTable({
   claims = [],
   policies = [],
 }: {
-  claims?: any[];
-  policies?: any[];
+  claims?: ClaimInput[];
+  policies?: PolicyInput[];
 }) {
   const [rows] = React.useState<ActivityRow[]>(combineData(claims, policies));
-
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
     pageSize: 5,
@@ -158,9 +175,7 @@ export default function UserActivityTable({
       </div>
       <div className="flex items-center justify-between px-5 pb-4 pt-2">
         <span className="text-sm text-gray-400">
-          Page {table.getState().pagination.pageIndex + 1}
-          {" of "}
-          {table.getPageCount()}
+          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
         </span>
         <div className="flex items-center gap-1">
           <Button

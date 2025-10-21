@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { ChevronDown, FileText, ShieldCheck, BadgeHelp, Copy, LogOut } from "lucide-react";
 
 const NAV_LINKS = [
@@ -11,13 +12,19 @@ const NAV_LINKS = [
   { name: "Claims", href: "/claims", icon: <BadgeHelp size={28} /> }
 ];
 
+interface UserProfile {
+  phone: string;
+  photoUrl?: string;
+  name?: string;
+  walletAddress?: string;
+}
+
 export default function Header() {
   const [active, setActive] = useState(NAV_LINKS[0].name);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const profileBtnRef = useRef<HTMLDivElement>(null);
-
   const router = useRouter();
 
   useEffect(() => {
@@ -25,7 +32,7 @@ export default function Header() {
       if (typeof window === "undefined") return;
       const userStr = localStorage.getItem("user");
       const jwt = localStorage.getItem("jwt");
-      let user: any = userStr ? JSON.parse(userStr) : null;
+      const user: UserProfile | null = userStr ? JSON.parse(userStr) : null;
       if (!user || !user.phone) return;
 
       if (jwt) {
@@ -55,24 +62,22 @@ export default function Header() {
       if (!(e.target instanceof Element)) return;
       if (
         dropdownRef.current && dropdownRef.current.contains(e.target)
-      ) return; // click INSIDE dropdown: ignore
+      ) return;
 
       if (
         profileBtnRef.current && profileBtnRef.current.contains(e.target)
       ) {
-        setDropdownOpen((open) => !open); // if click on PROFILE BUTTON, toggle dropdown
+        setDropdownOpen((open) => !open);
         return;
       }
 
-      setDropdownOpen(false); // any other click: close
+      setDropdownOpen(false);
     }
     if (dropdownOpen) {
       document.addEventListener("mousedown", clickOutside);
       return () => document.removeEventListener("mousedown", clickOutside);
     }
   }, [dropdownOpen]);
-
-
 
   const copy = (val: string) => {
     navigator.clipboard.writeText(val);
@@ -85,7 +90,7 @@ export default function Header() {
       localStorage.removeItem("user_phone");
       setDropdownOpen(false);
       router.replace("/");
-      console.log("logout")
+      console.log("logout");
       window.location.reload();
     }
   };
@@ -96,7 +101,14 @@ export default function Header() {
         <nav
           className="max-w-6xl w-full mx-auto bg-[#161616] rounded-full shadow-lg flex items-center justify-between px-10 py-5 md:flex hidden"
         >
-          <img src="/icon.svg" alt="Logo" className="w-14 h-14 object-contain" />
+          <Image
+            src="/icon.svg"
+            alt="Logo"
+            width={56}
+            height={56}
+            className="w-14 h-14 object-contain"
+            priority
+          />
           <div className="flex-1 flex items-center justify-center">
             {NAV_LINKS.map((link) => (
               <Link
@@ -114,6 +126,7 @@ export default function Header() {
           </div>
           <div className="flex items-center space-x-10 relative">
             <div
+              ref={profileBtnRef}
               className="flex items-center px-4 py-3 bg-[#1d1c1d] gap-3 cursor-pointer select-none"
               style={{
                 borderRadius: "9999px",
@@ -122,10 +135,13 @@ export default function Header() {
               }}
               onClick={() => setDropdownOpen((o) => !o)}
             >
-              <img
+              <Image
                 src={profile?.photoUrl || "/profile.jpg"}
                 alt="Profile"
+                width={44}
+                height={44}
                 className="w-11 h-11 rounded-full object-cover bg-[#222]"
+                priority
               />
               <div className="flex flex-col items-start min-w-0">
                 <span className="text-sm text-white font-medium truncate">
@@ -141,10 +157,13 @@ export default function Header() {
                 style={{ top: 68 }}
               >
                 <div className="px-7 py-4 flex flex-col items-center gap-2">
-                  <img
+                  <Image
                     src={profile?.photoUrl || "/profile.jpg"}
                     alt="Profile"
+                    width={64}
+                    height={64}
                     className="w-16 h-16 rounded-full object-cover mb-2 bg-[#222]"
+                    priority
                   />
                   <div className="w-full text-center">
                     <span className="block text-lg font-bold text-white">
@@ -160,10 +179,14 @@ export default function Header() {
                       <span
                         className="text-xs text-[#d9fc09] font-mono truncate max-w-[120px] cursor-pointer"
                         title={profile?.walletAddress}
-                        onClick={() => profile?.walletAddress && copy(profile.walletAddress)}
+                        onClick={() =>
+                          profile?.walletAddress && copy(profile.walletAddress)
+                        }
                       >
                         {profile?.walletAddress
-                          ? profile.walletAddress.slice(0, 8) + "..." + profile.walletAddress.slice(-6)
+                          ? profile.walletAddress.slice(0, 8) +
+                            "..." +
+                            profile.walletAddress.slice(-6)
                           : "N/A"}
                         <Copy size={14} className="inline-block ml-2 align-middle" />
                       </span>
@@ -187,8 +210,16 @@ export default function Header() {
             )}
           </div>
         </nav>
+        {/* Mobile header */}
         <nav className="w-full max-w-6xl mx-auto flex items-center justify-between px-6 py-4 md:hidden">
-          <img src="/icon.svg" alt="Logo" className="w-12 h-12 object-contain" />
+          <Image
+            src="/icon.svg"
+            alt="Logo"
+            width={48}
+            height={48}
+            className="w-12 h-12 object-contain"
+            priority
+          />
           <div
             className="flex items-center px-2 py-2 bg-[#1d1c1d] gap-2 cursor-pointer"
             style={{
@@ -197,10 +228,13 @@ export default function Header() {
             }}
             onClick={() => setDropdownOpen((o) => !o)}
           >
-            <img
+            <Image
               src={profile?.photoUrl || "/profile.jpg"}
               alt="Profile"
+              width={36}
+              height={36}
               className="w-9 h-9 rounded-full object-cover bg-[#222]"
+              priority
             />
             <ChevronDown color="#d9fc09" size={20} strokeWidth={2.2} className="ml-1" />
           </div>
@@ -210,10 +244,13 @@ export default function Header() {
               className="absolute right-7 top-16 z-50 w-72 bg-[#232323] rounded-2xl shadow-xl border border-[#2a2a2a] animate-fade-down"
             >
               <div className="px-6 py-4 flex flex-col items-center gap-2">
-                <img
+                <Image
                   src={profile?.photoUrl || "/profile.jpg"}
                   alt="Profile"
+                  width={56}
+                  height={56}
                   className="w-14 h-14 rounded-full object-cover mb-2 bg-[#222]"
+                  priority
                 />
                 <span className="block text-lg font-bold text-white">
                   {profile?.name || "No name set"}
@@ -226,10 +263,14 @@ export default function Header() {
                   <span
                     className="text-xs text-[#d9fc09] font-mono truncate max-w-[100px] cursor-pointer"
                     title={profile?.walletAddress}
-                    onClick={() => profile?.walletAddress && copy(profile.walletAddress)}
+                    onClick={() =>
+                      profile?.walletAddress && copy(profile.walletAddress)
+                    }
                   >
                     {profile?.walletAddress
-                      ? profile.walletAddress.slice(0, 8) + "..." + profile.walletAddress.slice(-6)
+                      ? profile.walletAddress.slice(0, 8) +
+                        "..." +
+                        profile.walletAddress.slice(-6)
                       : "N/A"}
                     <Copy size={13} className="inline-block ml-2 align-middle" />
                   </span>
@@ -247,7 +288,7 @@ export default function Header() {
       </div>
       <div className="fixed left-0 bottom-0 w-full z-50 md:hidden flex justify-center pb-4 pointer-events-none">
         <div className="flex items-center justify-center bg-[#161616] rounded-full shadow-lg px-6 py-2 w-[96%] pointer-events-auto">
-          {NAV_LINKS.map(link => (
+          {NAV_LINKS.map((link) => (
             <Link
               key={link.name}
               href={link.href}

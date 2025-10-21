@@ -2,25 +2,24 @@
 import { useState, useRef } from "react";
 
 export default function OtpInput({ email, onSuccess }: { email: string; onSuccess: () => void }) {
-  const [otp, setOtp] = useState(["", "", "", "", ""]);
-  const inputRefs = Array.from({ length: 5 }, () => useRef<HTMLInputElement>(null));
-  const [error, setError] = useState("");
+  const [otp, setOtp] = useState<string[]>(["", "", "", "", ""]);
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const [error, setError] = useState<string>("");
 
   const handleChange = (idx: number, val: string) => {
     if (/^\d?$/.test(val)) {
       const o = [...otp];
       o[idx] = val;
       setOtp(o);
-      if (val && idx < 4) inputRefs[idx + 1].current?.focus();
+      if (val && idx < 4) inputRefs.current[idx + 1]?.focus();
     }
   };
   const handleKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !otp[idx] && idx > 0) inputRefs[idx - 1].current?.focus();
+    if (e.key === "Backspace" && !otp[idx] && idx > 0) inputRefs.current[idx - 1]?.focus();
   };
   const handleOTPSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const code = otp.join("");
-    // Replace "12345" below with your real validation logic
     if (code.length === 5) {
       if (code === "12345") onSuccess();
       else setError("Invalid OTP. Please try again.");
@@ -38,7 +37,7 @@ export default function OtpInput({ email, onSuccess }: { email: string; onSucces
         {otp.map((digit, idx) => (
           <input
             key={idx}
-            ref={inputRefs[idx]}
+            ref={el => (inputRefs.current[idx] = el)}
             type="text"
             maxLength={1}
             inputMode="numeric"

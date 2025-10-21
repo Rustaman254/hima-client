@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import Image from "next/image";
 
 type Country = {
   label: string;
@@ -13,7 +14,7 @@ type Country = {
 const COUNTRIES: Country[] = [
   { label: "KE (+254)", code: "KE", dialCode: "+254", validation: /^\d{9}$/ },
   { label: "US (+1)", code: "US", dialCode: "+1", validation: /^\d{10}$/ },
-  { label: "UK (+44)", code: "GB", dialCode: "+44", validation: /^\d{10}$/ }
+  { label: "UK (+44)", code: "GB", dialCode: "+44", validation: /^\d{10}$/ },
 ];
 
 type OnboardingFields = {
@@ -26,17 +27,20 @@ type OnboardingFields = {
 };
 
 const onboardingFieldOrder: (keyof OnboardingFields)[] = [
-  "name", "photoUrl",
-  "nationalId", "bodaRegNo",
-  "mobileMoneyNumber", "coverageLevel"
+  "name",
+  "photoUrl",
+  "nationalId",
+  "bodaRegNo",
+  "mobileMoneyNumber",
+  "coverageLevel",
 ];
 
 export default function Home() {
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
-  const [msisdn, setMsisdn] = useState<string>('');
+  const [msisdn, setMsisdn] = useState<string>("");
   const [showOtp, setShowOtp] = useState<boolean>(false);
-  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
-  const [mode, setMode] = useState<'signup' | 'login'>('login');
+  const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
+  const [mode, setMode] = useState<"signup" | "login">("login");
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -46,14 +50,22 @@ export default function Home() {
     nationalId: "",
     bodaRegNo: "",
     mobileMoneyNumber: "",
-    coverageLevel: ""
+    coverageLevel: "",
   });
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const router = useRouter();
-  const otpInputs = Array.from({ length: 6 }, () => useRef<HTMLInputElement>(null));
-  const baseURL = process.env.NODE_ENV === "development"
-    ? "http://localhost:8000/api/v1"
-    : "https://hima-g018.onrender.com/api/v1";
+  const otpInputs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
+  const baseURL =
+    process.env.NODE_ENV === "development"
+      ? "http://localhost:8000/api/v1"
+      : "https://hima-g018.onrender.com/api/v1";
   const getFullPhone = () => country.dialCode + msisdn;
 
   const handleSubmit = async (e: React.FormEvent<HTMLButtonElement>) => {
@@ -67,7 +79,7 @@ export default function Home() {
       const res1 = await fetch(`${baseURL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: getFullPhone() })
+        body: JSON.stringify({ phone: getFullPhone() }),
       });
       if (!res1.ok) {
         setLoading(false);
@@ -78,7 +90,7 @@ export default function Home() {
       const res2 = await fetch(`${baseURL}/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: getFullPhone() })
+        body: JSON.stringify({ phone: getFullPhone() }),
       });
       setLoading(false);
       if (res2.ok) setShowOtp(true);
@@ -87,7 +99,7 @@ export default function Home() {
       const res = await fetch(`${baseURL}/auth/login/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: getFullPhone() })
+        body: JSON.stringify({ phone: getFullPhone() }),
       });
       setLoading(false);
       if (res.ok) setShowOtp(true);
@@ -97,38 +109,41 @@ export default function Home() {
         if (data.message?.toLowerCase().includes("not found")) {
           setMode("signup");
           setShowOtp(false);
-          setOtp(['', '', '', '', '', '']);
+          setOtp(["", "", "", "", "", ""]);
         }
       }
     }
   };
 
-  const handleOtpVerification = async (e: React.FormEvent<HTMLButtonElement>) => {
+  const handleOtpVerification = async (
+    e: React.FormEvent<HTMLButtonElement>
+  ) => {
     e.preventDefault();
-    if (otp.join('').length !== 6) return;
+    if (otp.join("").length !== 6) return;
     setVerifying(true);
     setLoading(true);
 
-    let endpoint, body: any;
+    let endpoint: string;
+    let body: Record<string, unknown>;
     if (mode === "signup") {
       endpoint = `${baseURL}/auth/verify-otp`;
       body = {
         phone: getFullPhone(),
-        otp: otp.join(''),
-        blockchainNetworks: ["base", "celo"]
+        otp: otp.join(""),
+        blockchainNetworks: ["base", "celo"],
       };
     } else {
       endpoint = `${baseURL}/auth/login/verify-otp`;
       body = {
         phone: getFullPhone(),
-        otp: otp.join('')
+        otp: otp.join(""),
       };
     }
 
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
 
     if (res.ok) {
@@ -141,7 +156,7 @@ export default function Home() {
           phoneVerified: data.user.phoneVerified,
           walletAddress: data.user.walletAddress,
           smartWalletAddress: data.user.smartWalletAddress,
-          onboardingSteps: data.user.onboardingSteps
+          onboardingSteps: data.user.onboardingSteps,
         })
       );
       localStorage.setItem("user_phone", data.user.phone);
@@ -170,7 +185,7 @@ export default function Home() {
     const res = await fetch(`${baseURL}/auth/onboard`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: getFullPhone(), ...onboarding })
+      body: JSON.stringify({ phone: getFullPhone(), ...onboarding }),
     });
     setOnboardingLoading(false);
     if (res.ok) {
@@ -183,7 +198,7 @@ export default function Home() {
 
   const setOtpAt = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
-    setOtp(prev => {
+    setOtp((prev) => {
       const arr = [...prev];
       arr[index] = value;
       return arr;
@@ -207,35 +222,61 @@ export default function Home() {
     "Whispering sweet nothings to the blockchains...",
     "Gently nudging validators to move faster...",
     "Please don’t close this tab — your assets thank you!",
-    "Performing cryptographic dance. Don’t blink!"
+    "Performing cryptographic dance. Don’t blink!",
   ];
-  const wittyMsg = wittyMessages[Math.floor(performance.now() / 3000) % wittyMessages.length];
+  const wittyMsg =
+    wittyMessages[Math.floor(performance.now() / 3000) % wittyMessages.length];
   const title = mode === "signup" ? "Create an Account" : "Welcome Back";
-  const allOnboardingFilled = onboardingFieldOrder.every(k => onboarding[k] && onboarding[k].trim());
+  const allOnboardingFilled = onboardingFieldOrder.every(
+    (k) => onboarding[k] && onboarding[k].trim()
+  );
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "#0a0b0b" }}>
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{ backgroundColor: "#0a0b0b" }}
+    >
       <div className="w-full max-w-md p-10 rounded-xl relative flex flex-col justify-center">
         <div className="flex justify-center mb-10">
-          <img src="/icon.svg" alt="Logo" className="w-26 h-26 md:w-23 md:h-23 object-contain" />
+          <Image
+            src="/icon.svg"
+            alt="Logo"
+            width={104}
+            height={104}
+            className="w-26 h-26 md:w-23 md:h-23 object-contain"
+            priority
+          />
         </div>
-        <h1 className="text-white text-4xl font-semibold text-center mb-10">{title}</h1>
+        <h1 className="text-white text-4xl font-semibold text-center mb-10">
+          {title}
+        </h1>
         {verifying ? (
           <div className="flex flex-col items-center w-full gap-10 min-h-[320px]">
             <Spinner />
-            <div className="text-white text-xl text-center px-2 animate-pulse">{wittyMsg}</div>
+            <div className="text-white text-xl text-center px-2 animate-pulse">
+              {wittyMsg}
+            </div>
           </div>
         ) : showOnboarding ? (
-          <form className="space-y-5" spellCheck={false} autoComplete="off" onSubmit={handleOnboarding}>
-            <div className="mb-2 text-white text-xl text-center font-semibold">Optional: Complete Your Profile</div>
+          <form
+            className="space-y-5"
+            spellCheck={false}
+            autoComplete="off"
+            onSubmit={handleOnboarding}
+          >
+            <div className="mb-2 text-white text-xl text-center font-semibold">
+              Optional: Complete Your Profile
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {onboardingFieldOrder.map(field => (
+              {onboardingFieldOrder.map((field) => (
                 <input
                   key={field}
                   type="text"
                   placeholder={field.replace(/([A-Z])/g, " $1")}
                   value={onboarding[field]}
-                  onChange={e => setOnboarding(o => ({ ...o, [field]: e.target.value }))}
+                  onChange={(e) =>
+                    setOnboarding((o) => ({ ...o, [field]: e.target.value }))
+                  }
                   className="px-5 py-4 rounded-full bg-[#1d1c1d] text-white text-base outline-none border-2 border-[#232323] focus:border-[#d9fc09] transition-colors"
                   required
                 />
@@ -244,7 +285,9 @@ export default function Home() {
             <div className="flex gap-2 justify-between pt-2">
               <button
                 type="submit"
-                className={`flex-1 px-4 py-4 rounded-full text-black text-base font-semibold transition-all cursor-pointer ${!allOnboardingFilled ? "bg-gray-500 cursor-not-allowed text-gray-200" : ""}`}
+                className={`flex-1 px-4 py-4 rounded-full text-black text-base font-semibold transition-all cursor-pointer ${
+                  !allOnboardingFilled ? "bg-gray-500 cursor-not-allowed text-gray-200" : ""
+                }`}
                 style={allOnboardingFilled ? { backgroundColor: "#d9fc09" } : {}}
                 disabled={!allOnboardingFilled || onboardingLoading}
               >
@@ -252,7 +295,9 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                className={`flex-1 px-4 py-4 rounded-full border border-[#d9fc09] bg-black text-base font-semibold cursor-pointer transition-all ${!allOnboardingFilled ? "bg-gray-700 text-gray-300 border-gray-700 cursor-not-allowed" : ""}`}
+                className={`flex-1 px-4 py-4 rounded-full border border-[#d9fc09] bg-black text-base font-semibold cursor-pointer transition-all ${
+                  !allOnboardingFilled ? "bg-gray-700 text-gray-300 border-gray-700 cursor-not-allowed" : ""
+                }`}
                 onClick={() => {
                   toast.success("Congratulations! Your profile is updated.");
                   router.push("/dashboard");
@@ -270,20 +315,28 @@ export default function Home() {
                 <div className="relative flex items-center">
                   <select
                     value={country.code}
-                    onChange={e => {
-                      const selected = COUNTRIES.find(c => c.code === e.target.value);
+                    onChange={(e) => {
+                      const selected = COUNTRIES.find(
+                        (c) => c.code === e.target.value
+                      );
                       if (selected) setCountry(selected);
                     }}
                     className="rounded-full cursor-pointer px-4 py-4 bg-[#1d1c1d] text-white outline-none transition-colors appearance-none min-w-[130px] pr-10 border-2 border-[#2a292a] hover:border-[#d9fc09] focus:border-[#d9fc09]"
-                    style={{ boxSizing: "border-box" }}
                   >
-                    {COUNTRIES.map(c => (
-                      <option key={c.code} value={c.code}>{c.label}</option>
+                    {COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.label}
+                      </option>
                     ))}
                   </select>
                   <span className="absolute right-3 pointer-events-none flex items-center">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <path d="M7 8l3 3 3-3" stroke="#d9fc09" strokeWidth="2" strokeLinecap="round" />
+                      <path
+                        d="M7 8l3 3 3-3"
+                        stroke="#d9fc09"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
                     </svg>
                   </span>
                 </div>
@@ -292,13 +345,21 @@ export default function Home() {
                   type="tel"
                   id="msisdn"
                   value={msisdn}
-                  onChange={e => setMsisdn(e.target.value.replace(/[^\d]/g, ''))}
+                  onChange={(e) =>
+                    setMsisdn(e.target.value.replace(/[^\d]/g, ""))
+                  }
                   placeholder="Enter phone number"
                   required
                   className="flex-1 px-5 py-4 rounded-full text-white text-base outline-none transition-colors"
                   style={{ backgroundColor: "#1d1c1d" }}
-                  onFocus={e => (e.target as HTMLInputElement).style.backgroundColor = "#2a292a"}
-                  onBlur={e => (e.target as HTMLInputElement).style.backgroundColor = "#1d1c1d"}
+                  onFocus={(e) =>
+                    (e.target as HTMLInputElement).style.backgroundColor =
+                      "#2a292a"
+                  }
+                  onBlur={(e) =>
+                    (e.target as HTMLInputElement).style.backgroundColor =
+                      "#1d1c1d"
+                  }
                 />
               </div>
             </div>
@@ -310,9 +371,12 @@ export default function Home() {
               style={{ backgroundColor: "#d9fc09" }}
             >
               {loading
-                ? (mode === 'signup' ? 'Processing...' : 'Requesting OTP...')
-                : (mode === 'signup' ? 'Sign Up' : 'Log In')
-              }
+                ? mode === "signup"
+                  ? "Processing..."
+                  : "Requesting OTP..."
+                : mode === "signup"
+                ? "Sign Up"
+                : "Log In"}
             </button>
             <div className="text-center mt-5 flex flex-col items-center">
               {mode === "signup" ? (
@@ -322,7 +386,10 @@ export default function Home() {
                     type="button"
                     className="font-semibold cursor-pointer"
                     style={{ color: "#d9fc09" }}
-                    onClick={() => { setMode("login"); setShowOtp(false); }}
+                    onClick={() => {
+                      setMode("login");
+                      setShowOtp(false);
+                    }}
                   >
                     Login
                   </button>
@@ -334,7 +401,10 @@ export default function Home() {
                     type="button"
                     className="font-semibold cursor-pointer"
                     style={{ color: "#d9fc09" }}
-                    onClick={() => { setMode("signup"); setShowOtp(false); }}
+                    onClick={() => {
+                      setMode("signup");
+                      setShowOtp(false);
+                    }}
                   >
                     Sign Up
                   </button>
@@ -344,7 +414,12 @@ export default function Home() {
           </form>
         ) : (
           <form className="space-y-5" autoComplete="off">
-            <label htmlFor="otp" className="block text-gray-400 text-sm mb-2 text-center">Enter OTP</label>
+            <label
+              htmlFor="otp"
+              className="block text-gray-400 text-sm mb-2 text-center"
+            >
+              Enter OTP
+            </label>
             <div className="flex gap-2 w-full justify-between">
               {otp.map((v, i) => (
                 <input
@@ -356,12 +431,16 @@ export default function Home() {
                   pattern="[0-9]*"
                   className="flex-1 h-12 w-10 text-center text-2xl font-mono rounded-full border-2 border-[#2a292a] focus:border-[#d9fc09] transition-all bg-[#1d1c1d] text-white outline-none shadow-sm cursor-pointer"
                   value={v}
-                  onFocus={e => e.target.select()}
-                  onChange={e => setOtpAt(i, e.target.value)}
-                  onKeyDown={e => {
-                    if ((e.key === "Backspace" || e.key === "ArrowLeft") && i > 0 && !otp[i]) {
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setOtpAt(i, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (
+                      (e.key === "Backspace" || e.key === "ArrowLeft") &&
+                      i > 0 &&
+                      !otp[i]
+                    ) {
                       otpInputs[i - 1].current?.focus();
-                    } else if ((e.key === "ArrowRight") && i < 5) {
+                    } else if (e.key === "ArrowRight" && i < 5) {
                       otpInputs[i + 1].current?.focus();
                     }
                   }}
@@ -373,12 +452,11 @@ export default function Home() {
               <button
                 type="button"
                 onClick={(e) => {
-                  if (otp.join('').length === 6)
-                    handleOtpVerification(e as any)
-                  else
-                    toast.error("Please fill all OTP digits.");
+                  if (otp.join("").length === 6)
+                    handleOtpVerification(e as any);
+                  else toast.error("Please fill all OTP digits.");
                 }}
-                disabled={loading || otp.join('').length !== 6}
+                disabled={loading || otp.join("").length !== 6}
                 className="w-full px-4 py-4 rounded-full text-black text-base font-semibold transition-all mt-2.5 cursor-pointer"
                 style={{ backgroundColor: "#d9fc09" }}
               >
@@ -393,7 +471,11 @@ export default function Home() {
                     type="button"
                     className="font-semibold cursor-pointer"
                     style={{ color: "#d9fc09" }}
-                    onClick={() => { setMode("login"); setShowOtp(false); setOtp(['', '', '', '', '', '']); }}
+                    onClick={() => {
+                      setMode("login");
+                      setShowOtp(false);
+                      setOtp(["", "", "", "", "", ""]);
+                    }}
                   >
                     Login
                   </button>
@@ -405,7 +487,11 @@ export default function Home() {
                     type="button"
                     className="font-semibold cursor-pointer"
                     style={{ color: "#d9fc09" }}
-                    onClick={() => { setMode("signup"); setShowOtp(false); setOtp(['', '', '', '', '', '']); }}
+                    onClick={() => {
+                      setMode("signup");
+                      setShowOtp(false);
+                      setOtp(["", "", "", "", "", ""]);
+                    }}
                   >
                     Sign Up
                   </button>
