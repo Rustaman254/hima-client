@@ -46,6 +46,7 @@ export default function Header() {
         });
         if (res.ok) {
           const data = await res.json();
+          console.log(data, user)
           setProfile(data.user);
         } else {
           setProfile(user);
@@ -104,7 +105,7 @@ export default function Header() {
         <nav className="max-w-7xl w-full mx-auto bg-[#161616] rounded-2xl shadow-xl border border-[#232323] flex items-center justify-between px-8 py-4 md:flex hidden">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="bg-[#d9fc09] p-2 rounded-xl">
+            <div className="p-2 rounded-xl">
               <Image
                 src="/icon.svg"
                 alt="Logo"
@@ -114,7 +115,7 @@ export default function Header() {
                 priority
               />
             </div>
-            <span className="text-lg font-bold text-white">BodaBoda</span>
+            <span className="text-lg font-bold text-white">Hima</span>
           </div>
 
           {/* Navigation Links */}
