@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
@@ -53,6 +53,9 @@ export default function Home() {
     coverageLevel: "",
   });
   const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const RESEND_COOLDOWN_SECONDS = 30;
   const router = useRouter();
   const otpInputs = [
     useRef<HTMLInputElement>(null),
@@ -67,6 +70,16 @@ export default function Home() {
       ? "http://localhost:8000/api/v1"
       : "https://hima-g018.onrender.com/api/v1";
   const getFullPhone = () => country.dialCode + msisdn;
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (showOtp && resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [showOtp, resendCooldown]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -93,8 +106,12 @@ export default function Home() {
         body: JSON.stringify({ phone: getFullPhone() }),
       });
       setLoading(false);
-      if (res2.ok) setShowOtp(true);
-      else toast.error((await res2.json()).message || "Failed to send OTP");
+      if (res2.ok) {
+        setShowOtp(true);
+        setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      } else {
+        toast.error((await res2.json()).message || "Failed to send OTP");
+      }
     } else {
       const res = await fetch(`${baseURL}/auth/login/request-otp`, {
         method: "POST",
@@ -102,8 +119,10 @@ export default function Home() {
         body: JSON.stringify({ phone: getFullPhone() }),
       });
       setLoading(false);
-      if (res.ok) setShowOtp(true);
-      else {
+      if (res.ok) {
+        setShowOtp(true);
+        setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      } else {
         const data = await res.json();
         toast.error(data.message || "Failed to request OTP");
         if (data.message?.toLowerCase().includes("not found")) {
@@ -112,6 +131,30 @@ export default function Home() {
           setOtp(["", "", "", "", "", ""]);
         }
       }
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setResendLoading(true);
+    let endpoint: string;
+    if (mode === "signup") {
+      endpoint = `${baseURL}/auth/send-otp`;
+    } else {
+      endpoint = `${baseURL}/auth/login/request-otp`;
+    }
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: getFullPhone() }),
+    });
+    setResendLoading(false);
+    if (res.ok) {
+      toast.success("OTP resent!");
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      setOtp(["", "", "", "", "", ""]);
+    } else {
+      toast.error((await res.json()).message || "Failed to resend OTP");
     }
   };
 
@@ -130,7 +173,7 @@ export default function Home() {
       body = {
         phone: getFullPhone(),
         otp: otp.join(""),
-        blockchainNetworks: ["base", "celo"],
+        blockchainNetworks: ["base"],
       };
     } else {
       endpoint = `${baseURL}/auth/login/verify-otp`;
@@ -291,7 +334,7 @@ export default function Home() {
                 style={allOnboardingFilled ? { backgroundColor: "#d9fc09" } : {}}
                 disabled={!allOnboardingFilled || onboardingLoading}
               >
-                {onboardingLoading ? "Updating…" : "Finish & Go to Dashboard"}
+                {onboardingLoading ? "Updating…" : "Finish"}
               </button>
               <button
                 type="button"
@@ -302,7 +345,6 @@ export default function Home() {
                   toast.success("Congratulations! Your profile is updated.");
                   router.push("/dashboard");
                 }}
-                disabled={!allOnboardingFilled}
               >
                 Skip
               </button>
@@ -447,6 +489,16 @@ export default function Home() {
                   autoComplete="one-time-code"
                 />
               ))}
+            </div>
+            <div className="flex justify-center mt-2">
+              <button
+                type="button"
+                className="text-[#d9fc09] font-semibold text-sm underline disabled:opacity-60"
+                onClick={handleResendOtp}
+                disabled={resendLoading || resendCooldown > 0}
+              >
+                {resendCooldown > 0 ? `Resend available in ${resendCooldown}s` : "Resend OTP"}
+              </button>
             </div>
             {!verifying && (
               <button
