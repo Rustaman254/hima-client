@@ -136,10 +136,7 @@ export default function UserActivityTable({
 
   return (
     <div className="w-full max-w-4xl mx-auto mt-8 bg-[#161616] rounded-xl border border-[#232323] shadow-lg">
-      <div className="px-6 py-4 border-b border-[#232323]">
-        <h3 className="text-lg font-bold text-white">Recent Activity</h3>
-      </div>
-      <div className="overflow-x-auto px-2 py-3">
+      <div className="overflow-x-auto rounded-sm">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
