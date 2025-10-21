@@ -222,7 +222,7 @@ export default function Home() {
     "Whispering sweet nothings to the blockchains...",
     "Gently nudging validators to move faster...",
     "Please don’t close this tab — your assets thank you!",
-    "Performing cryptographic dance. Don’t blink!",
+    "Performing cryptographic dance. Don&apost blink!",
   ];
   const wittyMsg =
     wittyMessages[Math.floor(performance.now() / 3000) % wittyMessages.length];
@@ -396,7 +396,7 @@ export default function Home() {
                 </span>
               ) : (
                 <span className="text-gray-400">
-                  Don't have an account?{" "}
+                  Don&apos;t have an account?{" "}
                   <button
                     type="button"
                     className="font-semibold cursor-pointer"
@@ -482,7 +482,7 @@ export default function Home() {
                 </span>
               ) : (
                 <span className="text-gray-400">
-                  Don't have an account?{" "}
+                  Don&apos;t have an account?{" "}
                   <button
                     type="button"
                     className="font-semibold cursor-pointer"
