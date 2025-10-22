@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import { ChevronDown, FileText, ShieldCheck, BadgeHelp, Copy, LogOut, Home, Layers } from "lucide-react";
 
@@ -20,12 +20,21 @@ interface UserProfile {
 }
 
 export default function Header() {
-  const [active, setActive] = useState(NAV_LINKS[0].name);
+  const pathname = usePathname();
+  const getActiveName = () => {
+    const found = NAV_LINKS.find(link => link.href === pathname);
+    return found ? found.name : NAV_LINKS[0].name;
+  };
+  const [active, setActive] = useState(getActiveName());
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const profileBtnRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    setActive(getActiveName());
+  }, [pathname]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -61,21 +70,21 @@ export default function Header() {
   useEffect(() => {
     function clickOutside(e: MouseEvent) {
       if (!(e.target instanceof Element)) return;
-      
+
       // Don't close if clicking inside dropdown
       if (dropdownRef.current && dropdownRef.current.contains(e.target)) {
         return;
       }
-      
+
       // Don't close if clicking the profile button (toggle handled separately)
       if (profileBtnRef.current && profileBtnRef.current.contains(e.target)) {
         return;
       }
-      
+
       // Close if clicking outside
       setDropdownOpen(false);
     }
-    
+
     if (dropdownOpen) {
       document.addEventListener("mousedown", clickOutside);
       return () => document.removeEventListener("mousedown", clickOutside);
@@ -126,12 +135,10 @@ export default function Header() {
                 <Link
                   key={link.name}
                   href={link.href}
-                  className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-all ${
-                    active === link.name
+                  className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-all ${active === link.name
                       ? "bg-[#d9fc09] text-[#161616] shadow-md"
                       : "text-gray-400 hover:bg-[#232323] hover:text-white"
-                  }`}
-                  onClick={() => setActive(link.name)}
+                    }`}
                 >
                   <Icon size={18} />
                   <span>{link.name}</span>
@@ -163,8 +170,8 @@ export default function Header() {
                   {profile?.phone}
                 </span>
               </div>
-              <ChevronDown 
-                size={18} 
+              <ChevronDown
+                size={18}
                 className={`text-[#d9fc09] transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
               />
             </button>
@@ -201,8 +208,8 @@ export default function Header() {
                   <div className="bg-[#232323] rounded-xl p-4 mb-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs text-gray-400 uppercase tracking-wider">Wallet Address</span>
-                      <Copy 
-                        size={14} 
+                      <Copy
+                        size={14}
                         className="text-gray-500 hover:text-[#d9fc09] cursor-pointer transition"
                         onClick={() => profile?.walletAddress && copy(profile.walletAddress)}
                       />
@@ -266,8 +273,8 @@ export default function Header() {
                 className="w-8 h-8 rounded-lg object-cover bg-[#1a1a1a]"
                 priority
               />
-              <ChevronDown 
-                size={16} 
+              <ChevronDown
+                size={16}
                 className={`text-[#d9fc09] transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
               />
             </button>
@@ -298,8 +305,8 @@ export default function Header() {
                   <div className="bg-[#232323] rounded-xl p-3 mb-4">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs text-gray-400">Wallet</span>
-                      <Copy 
-                        size={12} 
+                      <Copy
+                        size={12}
                         className="text-gray-500 cursor-pointer"
                         onClick={() => profile?.walletAddress && copy(profile.walletAddress)}
                       />
@@ -334,11 +341,10 @@ export default function Header() {
               <Link
                 key={link.name}
                 href={link.href}
-                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${
-                  active === link.name
-                    ? "bg-[#d9fc09] text-[#161616]"
-                    : "text-gray-400 hover:text-white"
-                }`}
+                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${active === link.name
+                  ? "bg-[#d9fc09] text-[#161616]"
+                  : "text-gray-400 hover:text-white"
+                  }`}
                 onClick={() => setActive(link.name)}
               >
                 <Icon size={22} />
