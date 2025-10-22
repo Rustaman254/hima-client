@@ -1,4 +1,5 @@
 "use client";
+import { useState, useEffect } from "react";
 import Header from "./shared-components/Header";
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
 import {
@@ -20,46 +21,47 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import UserActivityTable from "@/components/shared-components/userActivity";
+import { usePlans } from "@/hooks/plans";
 
-const plans = [
-  {
-    id: "comprehensive",
-    name: "Comprehensive",
-    price: "KES 10,000 / year",
-    description: "Full boda boda protection: theft, fire, accident, third-party liability, rider injury cover.",
-    features: [
-      "Third-party coverage",
-      "Accidents, fire, theft",
-      "Quick claim processing",
-      "Personal accident cover",
-    ],
-    best: true,
-  },
-  {
-    id: "thirdparty",
-    name: "Third Party Only",
-    price: "KES 3,500 / year",
-    description: "Meets legal requirements, covers only third-party damages and injuries.",
-    features: [
-      "Third-party liability",
-      "Legal compliance",
-      "Easy renewal",
-    ],
-    best: false,
-  },
-  {
-    id: "personal",
-    name: "Personal Accident",
-    price: "KES 1,200 / year",
-    description: "Covers the rider for accidental medical costs and disability.",
-    features: [
-      "Rider medical cover",
-      "Disability payout",
-      "Add-on to other plans",
-    ],
-    best: false,
-  },
-];
+// const plans = [
+//   {
+//     id: "comprehensive",
+//     name: "Comprehensive",
+//     price: "KES 10,000 / year",
+//     description: "Full boda boda protection: theft, fire, accident, third-party liability, rider injury cover.",
+//     features: [
+//       "Third-party coverage",
+//       "Accidents, fire, theft",
+//       "Quick claim processing",
+//       "Personal accident cover",
+//     ],
+//     best: true,
+//   },
+//   {
+//     id: "thirdparty",
+//     name: "Third Party Only",
+//     price: "KES 3,500 / year",
+//     description: "Meets legal requirements, covers only third-party damages and injuries.",
+//     features: [
+//       "Third-party liability",
+//       "Legal compliance",
+//       "Easy renewal",
+//     ],
+//     best: false,
+//   },
+//   {
+//     id: "personal",
+//     name: "Personal Accident",
+//     price: "KES 1,200 / year",
+//     description: "Covers the rider for accidental medical costs and disability.",
+//     features: [
+//       "Rider medical cover",
+//       "Disability payout",
+//       "Add-on to other plans",
+//     ],
+//     best: false,
+//   },
+// ];
 
 function MotorcycleInsuranceSummaryCards({ nextPayment = "2026-01-14" }: { nextPayment?: string }) {
   return (
@@ -158,6 +160,9 @@ function MotorcycleInsuranceSummaryCards({ nextPayment = "2026-01-14" }: { nextP
 }
 
 export default function Dashboard() {
+
+  const [plans, isLoading, error] = usePlans();
+
   const summary = {
     totalPolicies: 3,
     activePolicies: 2,
@@ -239,22 +244,24 @@ export default function Dashboard() {
             <p className="text-gray-400">Choose the perfect coverage for your boda boda</p>
           </div>
 
+          {isLoading && <div className="text-white">Loading plans...</div>}
+          {error && <div className="text-red-500">{error}</div>}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {plans.map(plan => (
+            {(plans as Array<any> ?? [])?.map((plan: any) => (
               <div
-                key={plan.id}
-                className={`relative bg-[#161616] rounded-2xl p-8 flex flex-col shadow-xl border transition-all hover:shadow-2xl hover:-translate-y-1 ${
-                  plan.best
+                key={plan._id || plan.id || plan.name}
+                className={`relative bg-[#161616] rounded-2xl p-8 flex flex-col shadow-xl border transition-all hover:shadow-2xl hover:-translate-y-1 ${plan.type === "comprehensive"
                     ? "border-[#d9fc09] ring-2 ring-[#d9fc09] ring-opacity-50"
                     : "border-[#232323] hover:border-[#2a2a2a]"
-                }`}
+                  }`}
               >
-                {plan.best && (
+                {plan.type === "comprehensive" && (
                   <span className="absolute -top-3 right-8 text-xs px-4 py-1.5 rounded-full bg-[#d9fc09] text-[#161616] font-bold shadow-lg">
                     Most Popular
                   </span>
                 )}
-                
+
                 <div className="flex items-center mb-4">
                   <div className="p-2 rounded-lg bg-[#d9fc09]/10 mr-3">
                     <ShieldCheck size={28} className="text-[#d9fc09]" />
@@ -262,11 +269,15 @@ export default function Dashboard() {
                   <div className="text-xl text-white font-bold">{plan.name}</div>
                 </div>
 
-                <div className="text-3xl text-white font-bold mb-2">{plan.price}</div>
+                <div className="text-3xl text-white font-bold mb-2">
+                  {typeof plan.premium === "number"
+                    ? `KES ${plan.premium.toLocaleString()} / year`
+                    : ""}
+                </div>
                 <div className="text-gray-400 text-sm mb-6 leading-relaxed">{plan.description}</div>
 
                 <ul className="mb-8 flex-1 space-y-3">
-                  {plan.features.map((f, i) => (
+                  {(plan.inclusions || []).map((f: any, i: any) => (
                     <li className="flex items-start gap-3 text-gray-200 text-sm" key={i}>
                       <BadgePercent size={18} className="text-[#d9fc09] mt-0.5 flex-shrink-0" />
                       <span>{f}</span>
@@ -276,11 +287,10 @@ export default function Dashboard() {
 
                 <div className="space-y-3">
                   <button
-                    className={`w-full px-6 py-3 rounded-xl text-sm font-semibold transition-all shadow-md hover:shadow-lg ${
-                      plan.best
+                    className={`w-full px-6 py-3 rounded-xl text-sm font-semibold transition-all shadow-md hover:shadow-lg ${plan.type === "comprehensive"
                         ? "bg-[#d9fc09] text-[#161616] hover:bg-[#e5ff1a]"
                         : "bg-[#232323] text-white hover:bg-[#2a2a2a]"
-                    }`}
+                      }`}
                     onClick={() => alert(`Selected plan: ${plan.name}`)}
                   >
                     Choose Plan

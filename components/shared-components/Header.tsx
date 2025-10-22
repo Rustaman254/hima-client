@@ -7,7 +7,7 @@ import { ChevronDown, FileText, ShieldCheck, BadgeHelp, Copy, LogOut, Home, Laye
 
 const NAV_LINKS = [
   { name: "Home", href: "/dashboard", icon: Home },
-  { name: "Plans", href: "/plans", icon: Layers },
+  // { name: "Plans", href: "/plans", icon: Layers },
   { name: "Policies", href: "/policies", icon: FileText },
   { name: "Claims", href: "/claims", icon: BadgeHelp }
 ];
@@ -101,9 +101,9 @@ export default function Header() {
       localStorage.removeItem("user");
       localStorage.removeItem("user_phone");
       setDropdownOpen(false);
-      router.replace("/");
+      router.push("/");
       console.log("logout");
-      window.location.reload();
+      // window.location.reload();
     }
   };
 
