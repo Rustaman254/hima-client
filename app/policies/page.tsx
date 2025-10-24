@@ -302,14 +302,14 @@ export default function PoliciesPage() {
       plan: form.plan,
       startDate: formattedStartDate,
       endDate: formattedEndDate,
-      premiumPaid: Number(selectedPlan.premium), // Number, as per payload
-      coverageAmount: Number(selectedPlan.coverageAmount), // Number, as per payload
+      premiumPaid: Number(selectedPlan.premium), 
+      coverageAmount: Number(selectedPlan.coverageAmount), 
       rider: "0x93fa9484c018B2AFaA7a1924aAC566e907110cb1",
       token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-      premium: (selectedPlan.premium * 1000000).toString(), // String, as per payload
+      premium: (selectedPlan.premium * 1000000).toString(), 
       user_address: "0x80569F788Ca7564429feB8Aabdd4Ff73e0aC98E0",
-      amount_fiat: Number(selectedPlan.premium), // Number, as per payload
-      phone_number: formattedPhoneNumber, // No "+" prefix
+      amount_fiat: Number(selectedPlan.premium), 
+      phone_number: "254710865696", 
       currency: "KES"
     };
 
@@ -440,7 +440,7 @@ export default function PoliciesPage() {
             </div>
             <Dialog open={inputOpen} onOpenChange={setInputOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-[#d9fc09] text-[#161616] hover:bg-[#e5ff1a] font-semibold">
+                <Button className="bg-[#d9fc09] cursor-pointer text-[#161616] hover:bg-[#e5ff1a] font-semibold">
                   <BadgeCheck size={18} />
                   New Policy
                 </Button>
@@ -495,7 +495,7 @@ export default function PoliciesPage() {
                       />
                     </div>
                   </div>
-                  <Button type="submit" className="bg-[#d9fc09] text-[#161616] hover:bg-[#e5ff1a] font-semibold w-full">
+                  <Button type="submit" className="bg-[#d9fc09] cursor-pointer text-[#161616] hover:bg-[#e5ff1a] font-semibold w-full">
                     Review Policy
                   </Button>
                 </form>
