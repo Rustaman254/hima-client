@@ -2,13 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Header from "@/components/shared-components/Header";
-import {
-  ShieldCheck,
-  BadgeHelp,
-  TrendingUp,
-  TrendingDown,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ShieldCheck, BadgeHelp, TrendingUp, TrendingDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -73,6 +67,7 @@ export default function Dashboard() {
           fetch(`${baseUrl}/api/v1/insurance/policies/me`, { headers: getAuthHeaders() }),
           fetch(`${baseUrl}/api/v1/insurance/claims`, { headers: getAuthHeaders() }),
         ]);
+
         const policyData = await policyRes.json();
         const claimData = await claimRes.json();
         setPolicies(policyData.policies || []);
@@ -87,16 +82,48 @@ export default function Dashboard() {
   const claimStatusStats = aggregateClaimStatus(claims);
   const totalPremium = policies.reduce((a, b) => a + (b.premiumPaid || 0), 0);
 
+  if (loading) {
+    return (
+      <div className="h-screen flex justify-center items-center text-gray-400">
+        Loading dashboard...
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0b0b] text-white">
       <Header />
       <main className="py-12 px-6 max-w-7xl mx-auto space-y-10">
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-6">
-          <SummaryCard title="Total Policies" value={policies.length} icon={<ShieldCheck />} change="+4%" trend="up" />
-          <SummaryCard title="Active Policies" value={policies.filter(p => p.isActive).length} icon={<TrendingUp />} change="+8%" trend="up" />
-          <SummaryCard title="Total Claims" value={claims.length} icon={<BadgeHelp />} change="+12%" trend="up" />
-          <SummaryCard title="Total Premium" value={`${totalPremium.toLocaleString()} KES`} icon={<TrendingDown />} change="+6%" trend="down" />
+          <SummaryCard
+            title="Total Policies"
+            value={policies.length}
+            icon={<ShieldCheck />}
+            change="+4%"
+            trend="up"
+          />
+          <SummaryCard
+            title="Active Policies"
+            value={policies.filter((p) => p.isActive).length}
+            icon={<TrendingUp />}
+            change="+8%"
+            trend="up"
+          />
+          <SummaryCard
+            title="Total Claims"
+            value={claims.length}
+            icon={<BadgeHelp />}
+            change="+12%"
+            trend="up"
+          />
+          <SummaryCard
+            title="Total Premium"
+            value={`${totalPremium.toLocaleString()} KES`}
+            icon={<TrendingDown />}
+            change="+6%"
+            trend="down"
+          />
         </div>
 
         {/* 3 Charts Row */}
@@ -106,9 +133,18 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Pie data={claimStatusStats} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
+                  <Pie
+                    data={claimStatusStats}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={60}
+                    outerRadius={100}
+                  >
                     {claimStatusStats.map((_, idx) => (
-                      <Cell key={idx} fill={`hsl(var(--chart-${(idx % 5) + 1}))`} />
+                      <Cell
+                        key={idx}
+                        fill={`hsl(var(--chart-${(idx % 5) + 1}))`}
+                      />
                     ))}
                   </Pie>
                 </PieChart>
@@ -123,8 +159,18 @@ export default function Dashboard() {
                   <CartesianGrid stroke="hsl(var(--muted))" vertical={false} />
                   <XAxis dataKey="month" stroke="#a1a1aa" />
                   <YAxis stroke="#a1a1aa" />
-                  <Line type="monotone" dataKey="policies" stroke="hsl(var(--chart-1))" strokeWidth={2} />
-                  <Line type="monotone" dataKey="claims" stroke="hsl(var(--chart-2))" strokeWidth={2} />
+                  <Line
+                    type="monotone"
+                    dataKey="policies"
+                    stroke="hsl(var(--chart-1))"
+                    strokeWidth={2}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="claims"
+                    stroke="hsl(var(--chart-2))"
+                    strokeWidth={2}
+                  />
                   <ChartTooltip content={<ChartTooltipContent />} />
                 </LineChart>
               </ResponsiveContainer>
@@ -138,7 +184,11 @@ export default function Dashboard() {
                   <CartesianGrid stroke="hsl(var(--muted))" vertical={false} />
                   <XAxis dataKey="month" stroke="#a1a1aa" />
                   <YAxis stroke="#a1a1aa" />
-                  <Bar dataKey="policies" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="policies"
+                    fill="hsl(var(--chart-1))"
+                    radius={[4, 4, 0, 0]}
+                  />
                   <ChartTooltip content={<ChartTooltipContent />} />
                 </BarChart>
               </ResponsiveContainer>
@@ -146,19 +196,19 @@ export default function Dashboard() {
           </ChartCard>
         </div>
 
-        {/* Policies and Claims Tables */}
+        {/* Data Tables */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           <DataTable title="My Policies" dataType="policy" data={policies} />
           <DataTable title="My Claims" dataType="claim" data={claims} />
         </div>
 
-        {/* Monthly Activity and side chart */}
+        {/* Monthly Activity and Side Chart */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
           <div className="lg:col-span-3">
             <Card className="bg-[#161616] border border-[#232323]">
               <CardHeader>
                 <CardTitle>Monthly Activity</CardTitle>
-                <CardDescription>Policies and Claims (Primary-based)</CardDescription>
+                <CardDescription>Policies and Claims</CardDescription>
               </CardHeader>
               <ChartContainer config={{}}>
                 <ResponsiveContainer width="100%" height={400}>
@@ -166,8 +216,16 @@ export default function Dashboard() {
                     <CartesianGrid stroke="hsl(var(--muted))" vertical={false} />
                     <XAxis dataKey="month" stroke="#a1a1aa" />
                     <YAxis stroke="#a1a1aa" />
-                    <Bar dataKey="policies" fill="hsl(var(--chart-1))" radius={[5, 5, 0, 0]} />
-                    <Bar dataKey="claims" fill="hsl(var(--chart-2))" radius={[5, 5, 0, 0]} />
+                    <Bar
+                      dataKey="policies"
+                      fill="hsl(var(--chart-1))"
+                      radius={[5, 5, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="claims"
+                      fill="hsl(var(--chart-2))"
+                      radius={[5, 5, 0, 0]}
+                    />
                     <ChartTooltip content={<ChartTooltipContent />} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -182,7 +240,11 @@ export default function Dashboard() {
                   <CartesianGrid stroke="hsl(var(--muted))" vertical={false} />
                   <XAxis dataKey="bodaRegNo" stroke="#a1a1aa" />
                   <YAxis stroke="#a1a1aa" />
-                  <Bar dataKey="count" fill="hsl(var(--chart-3))" radius={[5, 5, 0, 0]} />
+                  <Bar
+                    dataKey="count"
+                    fill="hsl(var(--chart-3))"
+                    radius={[5, 5, 0, 0]}
+                  />
                   <ChartTooltip content={<ChartTooltipContent />} />
                 </BarChart>
               </ResponsiveContainer>
@@ -195,13 +257,25 @@ export default function Dashboard() {
 }
 
 /* ---------- Helper Components ---------- */
-function SummaryCard({ title, value, icon, change, trend }: any) {
+
+interface SummaryCardProps {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  change: string;
+  trend?: "up" | "down";
+}
+
+function SummaryCard({ title, value, icon, change, trend }: SummaryCardProps) {
+  const trendColor =
+    trend === "up" ? "text-green-400" : trend === "down" ? "text-red-400" : "text-gray-400";
+
   return (
     <Card className="bg-[#161616] border border-[#232323] hover:border-[#2a2a2a]">
       <CardHeader>
         <CardDescription>{title}</CardDescription>
         <CardTitle className="text-3xl font-bold text-white mt-2">{value}</CardTitle>
-        <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className={`flex items-center gap-2 text-sm ${trendColor}`}>
           {icon} <span className="text-[#d9fc09]">{change}</span>
         </div>
       </CardHeader>
@@ -209,7 +283,12 @@ function SummaryCard({ title, value, icon, change, trend }: any) {
   );
 }
 
-function ChartCard({ title, children }: any) {
+interface ChartCardProps {
+  title: string;
+  children: React.ReactNode;
+}
+
+function ChartCard({ title, children }: ChartCardProps) {
   return (
     <Card className="bg-[#161616] border border-[#232323] h-[400px]">
       <CardHeader>
@@ -220,7 +299,15 @@ function ChartCard({ title, children }: any) {
   );
 }
 
-function DataTable({ title, dataType, data }: any) {
+type DataType = "policy" | "claim";
+
+interface DataTableProps {
+  title: string;
+  dataType: DataType;
+  data: Policy[] | Claim[];
+}
+
+function DataTable({ title, dataType, data }: DataTableProps) {
   return (
     <div className="bg-[#161616] rounded-xl border border-[#232323] p-5">
       <h2 className="text-lg font-bold mb-4 text-white">{title}</h2>
@@ -248,24 +335,24 @@ function DataTable({ title, dataType, data }: any) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((d: any) => (
+          {data.map((d) => (
             <TableRow key={d._id}>
               {dataType === "policy" ? (
                 <>
-                  <TableCell>{d.policyNumber}</TableCell>
-                  <TableCell>{d.bodaRegNo}</TableCell>
-                  <TableCell>{d.plan?.name}</TableCell>
-                  <TableCell>{d.coverageAmount?.toLocaleString()} KES</TableCell>
-                  <TableCell>{d.premiumPaid?.toLocaleString()} KES</TableCell>
-                  <TableCell>{d.status}</TableCell>
+                  <TableCell>{(d as Policy).policyNumber}</TableCell>
+                  <TableCell>{(d as Policy).bodaRegNo}</TableCell>
+                  <TableCell>{(d as Policy).plan?.name}</TableCell>
+                  <TableCell>{(d as Policy).coverageAmount?.toLocaleString()} KES</TableCell>
+                  <TableCell>{(d as Policy).premiumPaid?.toLocaleString()} KES</TableCell>
+                  <TableCell>{(d as Policy).status}</TableCell>
                 </>
               ) : (
                 <>
-                  <TableCell>{d.claimNumber}</TableCell>
-                  <TableCell>{d.bodaRegNo}</TableCell>
-                  <TableCell>{new Date(d.incidentDate).toLocaleDateString()}</TableCell>
-                  <TableCell>{d.amountClaimed?.toLocaleString()} KES</TableCell>
-                  <TableCell>{d.status}</TableCell>
+                  <TableCell>{(d as Claim).claimNumber}</TableCell>
+                  <TableCell>{(d as Claim).bodaRegNo}</TableCell>
+                  <TableCell>{new Date((d as Claim).incidentDate).toLocaleDateString()}</TableCell>
+                  <TableCell>{(d as Claim).amountClaimed?.toLocaleString()} KES</TableCell>
+                  <TableCell>{(d as Claim).status}</TableCell>
                 </>
               )}
             </TableRow>
@@ -278,22 +365,22 @@ function DataTable({ title, dataType, data }: any) {
 
 /* ---------- Data Helpers ---------- */
 function aggregateMonthlyData(policies: Policy[], claims: Claim[]) {
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return months.map((month, i) => ({
     month,
-    policies: policies.filter(p => new Date(p.startDate).getMonth() === i).length,
-    claims: claims.filter(c => new Date(c.incidentDate).getMonth() === i).length,
+    policies: policies.filter((p) => new Date(p.startDate).getMonth() === i).length,
+    claims: claims.filter((c) => new Date(c.incidentDate).getMonth() === i).length,
   }));
 }
 
 function aggregateClaimStatus(claims: Claim[]) {
   const counts: Record<string, number> = {};
-  claims.forEach(c => (counts[c.status] = (counts[c.status] || 0) + 1));
+  claims.forEach((c) => (counts[c.status] = (counts[c.status] || 0) + 1));
   return Object.entries(counts).map(([name, value]) => ({ name, value }));
 }
 
 function vehicleData(policies: Policy[]) {
   const vehicleMap: Record<string, number> = {};
-  policies.forEach(p => (vehicleMap[p.bodaRegNo] = (vehicleMap[p.bodaRegNo] || 0) + 1));
+  policies.forEach((p) => (vehicleMap[p.bodaRegNo] = (vehicleMap[p.bodaRegNo] || 0) + 1));
   return Object.entries(vehicleMap).map(([bodaRegNo, count]) => ({ bodaRegNo, count }));
 }
