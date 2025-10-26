@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import Header from "@/components/shared-components/Header";
 import {
   BadgeCheck,
   Calendar,
@@ -21,7 +20,9 @@ import {
   FileCheck,
   AlertTriangle,
   RefreshCw,
-  X
+  X,
+  Phone,
+  Wallet
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -52,7 +53,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -63,6 +63,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Header from "@/components/shared-components/Header";
+// API Configuration
+const API_BASE_URL = "http://localhost:8000/api/v1";
 
 // TypeScript interfaces
 interface Plan {
@@ -80,49 +83,69 @@ interface Policy {
   bodaRegNo: string;
   startDate: string;
   endDate: string;
-  premiumPaid: string | number; // Allow string or number to handle backend response
+  premiumPaid: string | number;
   status: string;
   orderEscrowId?: string;
   chainTx?: string;
+  policyId?: string;
   createdAt: string;
+  orderEscrowStatus?: string;
 }
 
 interface FormData {
   bodaRegNo: string;
   plan: string;
   startDate: string;
+  phoneNumber: string;
+  mobileNetwork: string;
 }
 
 interface InitResult {
+  message: string;
+  policyNumber: string;
+  transactionId: string;
+  policyId: string;
   status: string;
-  policyId?: string;
-  orderId?: string;
+  instructions: string;
 }
 
 interface CompleteResult {
-  policy?: {
+  message: string;
+  policy: {
+    _id: string;
     policyNumber: string;
+    bodaRegNo: string;
+    plan: string;
+    status: string;
+    isActive: boolean;
+    startDate: string;
+    endDate: string;
+    premiumPaid: number;
+    coverageAmount: number;
+    rider: string;
+    createdAt: string;
   };
-  blockchain?: {
+  blockchain: {
+    policyId: string;
     transactionHash: string;
+    blockNumber: number;
+    approvalTx?: string;
+    chain: string;
+    paymasterPaid: boolean;
   };
-}
-
-interface PolicySummary {
-  planName: string;
-  bodaRegNo: string;
-  startDate: string;
-  endDate: string;
-  premiumPaid: number;
-  coverageAmount: number;
-  rider: string;
-  phone_number: string;
-  currency: string;
+  payment: {
+    transactionId: string;
+    status: string;
+    amountKES: number;
+    amountUSDC: number;
+    provider: string;
+  };
 }
 
 function getStatusColor(status?: string): string {
   const colors: Record<string, string> = {
     active: "bg-green-500/10 text-green-400 border-green-500/20",
+    paused: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
     "expiring soon": "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
     expired: "bg-red-500/10 text-red-400 border-red-500/20",
   };
@@ -133,6 +156,8 @@ function getStatusIcon(status?: string) {
   switch (status?.toLowerCase()) {
     case "active":
       return <CheckCircle2 size={14} />;
+    case "paused":
+      return <Clock size={14} />;
     case "expiring soon":
       return <AlertTriangle size={14} />;
     case "expired":
@@ -144,13 +169,17 @@ function getStatusIcon(status?: string) {
 
 function copyToClipboard(text?: string) {
   if (text) {
-    navigator.clipboard.writeText(`0x${text}`).catch(err => console.error("Failed to copy to clipboard:", err));
+    const fullText = text.startsWith('0x') ? text : `0x${text}`;
+    navigator.clipboard.writeText(fullText)
+      .then(() => alert('Copied to clipboard!'))
+      .catch(err => console.error("Failed to copy:", err));
   }
 }
 
 function openExplorer(hash?: string) {
   if (hash) {
-    window.open(`https://base-sepolia.blockscout.com/tx/0x${hash}`, "_blank");
+    const cleanHash = hash.startsWith('0x') ? hash : `0x${hash}`;
+    window.open(`https://basescan.org/tx/${cleanHash}`, "_blank");
   }
 }
 
@@ -166,16 +195,21 @@ export default function PoliciesPage() {
     bodaRegNo: "",
     plan: "",
     startDate: "",
+    phoneNumber: "",
+    mobileNetwork: "Safaricom"
   });
   const [initResult, setInitResult] = useState<InitResult | null>(null);
   const [completeResult, setCompleteResult] = useState<CompleteResult | null>(null);
   const [polling, setPolling] = useState<boolean>(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const token = localStorage.getItem('jwt') || "";
-  const phone_number = localStorage.getItem('user_phone') || "";
-  const rider = JSON.parse(localStorage.getItem('user') || '{}')?.walletAddress || "";
-  const formattedPhoneNumber = phone_number; // Use phone_number as-is, no "+" prefix
+  const [paymentStatus, setPaymentStatus] = useState<string>("");
 
+  const token = localStorage.getItem('jwt') || "";
+  const userStr = localStorage.getItem('user') || '{}';
+  const user = JSON.parse(userStr);
+  const rider = user?.walletAddress || "";
+
+  // Fetch user policies
   useEffect(() => {
     if (!token) {
       setPaymentError("No JWT token found. Please log in again.");
@@ -183,29 +217,36 @@ export default function PoliciesPage() {
       return;
     }
 
-    fetch("http://localhost:8000/api/v1/insurance/policies/me", {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    })
-      .then(res => res.json())
-      .then(data => {
-        setPolicies((data.policies || []) as Policy[]);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Error fetching policies:", err);
-        setLoading(false);
-        setPaymentError("Failed to fetch policies. Please try again.");
-      });
+    fetchPolicies();
   }, [token]);
 
+  const fetchPolicies = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/insurance/policies/me`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch policies');
+
+      const data = await res.json();
+      setPolicies((data.policies || []) as Policy[]);
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching policies:", err);
+      setLoading(false);
+      setPaymentError("Failed to fetch policies. Please try again.");
+    }
+  };
+
+  // Fetch available plans
   useEffect(() => {
     if (!token) return;
 
-    fetch("http://localhost:8000/api/v1/insurance/plans", {
+    fetch(`${API_BASE_URL}/insurance/plans`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -217,44 +258,86 @@ export default function PoliciesPage() {
       .catch(err => console.error("Error fetching plans:", err));
   }, [token]);
 
+  // Poll payment status
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let timeout: NodeJS.Timeout;
-    if (polling && initResult?.orderId) {
+
+    if (polling && initResult?.transactionId) {
+      console.log(`Starting to poll for transaction: ${initResult.transactionId}`);
+
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`http://localhost:8000/api/v1/insurance/policies/payment-status/${initResult.orderId}`, {
-            method: "GET",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json"
+          const res = await fetch(
+            `${API_BASE_URL}/insurance/policies/payment-status/${initResult.transactionId}`,
+            {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ currencyCode: "KES" })
             }
-          });
+          );
+
           const data = await res.json();
-          console.log("Payment Status Response:", JSON.stringify(data, null, 2));
-          if (data.data?.status === "success" && ["completed", "submitted", "settled"].includes(data.data.data?.status)) {
-            await handleCompletePolicy();
+          console.log("Payment Status:", data);
+
+          // Normalize all possible response structures
+          const status =
+            data?.status?.toUpperCase() ||                // backend flattened status field
+            data?.details?.status?.toUpperCase() ||       // if nested under 'details' (like recent payload)
+            data?.data?.status?.toUpperCase() ||          // legacy Pretium response
+            data?.data?.transaction_status?.toUpperCase() ||
+            "UNKNOWN";
+
+          console.log("🧾 Current Payment Status:", status, data);
+          setPaymentStatus(status);
+
+          // ✅ Handle Completed / Success
+          if (["COMPLETE", "COMPLETED", "SUCCESS"].includes(status)) {
+            console.log("✅ Payment confirmed! Completing policy...");
             clearInterval(interval);
             clearTimeout(timeout);
             setPolling(false);
+            await handleCompletePolicy();
           }
+
+          // ❌ Handle Failed / Rejected
+          else if (["FAILED", "REJECTED"].includes(status)) {
+            console.warn(`❌ Payment failed or rejected (${status})`);
+            clearInterval(interval);
+            clearTimeout(timeout);
+            setPolling(false);
+            setPaymentError(`Payment ${status}. Please try again.`);
+          }
+
+          // ⏳ Handle Pending / Other
+          else if (["PENDING", "PROCESSING", "AWAITING"].includes(status)) {
+            console.log(`⏳ Payment still pending: (${status})...`);
+          } else {
+            console.log(`⚠️ Unknown status response: ${status}`);
+          }
+
         } catch (err) {
           console.error("Payment check failed:", err);
         }
-      }, 2000); // Polling every 2 seconds
+      }, 5000); // Poll every 5 seconds
 
       timeout = setTimeout(() => {
         clearInterval(interval);
         setPolling(false);
-        setPaymentError("Payment confirmation timed out. Please check manually or try again.");
-      }, 600000);
+        setPaymentError("Payment confirmation timed out. Manually try again if payment succeeded.");
+      }, 300000); // Stop after 5 minutes
     }
 
     return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+      if (timeout) clearTimeout(timeout);
     };
   }, [polling, initResult, token]);
+
+
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({
@@ -266,14 +349,28 @@ export default function PoliciesPage() {
   const handleReviewPolicy = (e: React.FormEvent) => {
     e.preventDefault();
     const selectedPlan = plans.find(plan => plan._id === form.plan);
+
     if (!selectedPlan) {
       setPaymentError("Please select a valid plan");
       return;
     }
-    if (!form.bodaRegNo || !form.startDate || !rider || !formattedPhoneNumber) {
-      setPaymentError("Please fill in all required fields and ensure wallet address and phone number are set");
+    if (!form.bodaRegNo || !form.startDate || !form.phoneNumber) {
+      setPaymentError("Please fill in all required fields");
       return;
     }
+    if (!rider) {
+      setPaymentError("Wallet address not found. Please ensure you're logged in.");
+      return;
+    }
+
+    // Validate phone number format
+    const phoneRegex = /^(254|0)?[17]\d{8}$/;
+    if (!phoneRegex.test(form.phoneNumber.replace(/\s+/g, ''))) {
+      setPaymentError("Invalid phone number. Use format: 0712345678 or 254712345678");
+      return;
+    }
+
+    setPaymentError(null);
     setInputOpen(false);
     setSummaryOpen(true);
   };
@@ -282,6 +379,7 @@ export default function PoliciesPage() {
     setInitResult(null);
     setCompleteResult(null);
     setPaymentError(null);
+    setPaymentStatus("");
 
     const selectedPlan = plans.find(plan => plan._id === form.plan);
     if (!selectedPlan) {
@@ -293,35 +391,39 @@ export default function PoliciesPage() {
     const endDate = new Date(startDate);
     endDate.setMonth(startDate.getMonth() + selectedPlan.coverageDurationMonths);
 
-    const formattedStartDate = startDate.toISOString();
-    const formattedEndDate = endDate.toISOString();
+    // Clean phone number - remove spaces, handle different formats
+    let cleanPhone = form.phoneNumber.trim().replace(/\s+/g, '');
+
+    // The backend expects format starting with 07 or 254
+    if (cleanPhone.startsWith('+254')) {
+      cleanPhone = '0' + cleanPhone.slice(4);
+    } else if (cleanPhone.startsWith('254')) {
+      cleanPhone = '0' + cleanPhone.slice(3);
+    } else if (/^7\d{8}$/.test(cleanPhone)) {
+      cleanPhone = '0' + cleanPhone;
+    }
 
     const payload = {
-      user: "68f70071e2f20ab129145383",
       bodaRegNo: form.bodaRegNo,
       plan: form.plan,
-      startDate: formattedStartDate,
-      endDate: formattedEndDate,
-      premiumPaid: Number(selectedPlan.premium), 
-      coverageAmount: Number(selectedPlan.coverageAmount), 
-      rider: "0x93fa9484c018B2AFaA7a1924aAC566e907110cb1",
-      token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-      premium: (selectedPlan.premium * 1000000).toString(), 
-      user_address: "0x80569F788Ca7564429feB8Aabdd4Ff73e0aC98E0",
-      amount_fiat: Number(selectedPlan.premium), 
-      phone_number: "254710865696", 
-      currency: "KES"
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      premiumPaid: selectedPlan.premium,
+      coverageAmount: selectedPlan.coverageAmount,
+      insuredBikeDetails: {
+        registrationNumber: form.bodaRegNo,
+        // Add other bike details if available
+      },
+      rider: rider,
+      phone_number: cleanPhone,
+      mobile_network: form.mobileNetwork,
+      amount_kes: selectedPlan.premium
     };
 
     console.log("Initiate Policy Payload:", JSON.stringify(payload, null, 2));
 
-    if (!token) {
-      setPaymentError("No JWT token found. Please log in again.");
-      return;
-    }
-
     try {
-      const res = await fetch("http://localhost:8000/api/v1/insurance/policies/initiate", {
+      const res = await fetch(`${API_BASE_URL}/insurance/policies/initiate`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -331,33 +433,35 @@ export default function PoliciesPage() {
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Initiate Policy Error Response:", errorText);
-        throw new Error(`HTTP error! Status: ${res.status}, Message: ${errorText || 'Unknown error'}`);
+        const errorData = await res.json();
+        throw new Error(errorData.message || `HTTP error! Status: ${res.status}`);
       }
 
       const result: InitResult = await res.json();
       console.log("Initiate Policy Response:", JSON.stringify(result, null, 2));
+
       setInitResult(result);
+
       if (result.status === "pending_payment") {
         setSummaryOpen(false);
         setPolling(true);
+        setPaymentStatus("waiting for confirmation...");
       }
     } catch (err: any) {
       console.error("Error initiating policy:", err);
-      setPaymentError(`Failed to initiate policy: ${err.message}. Please try again or contact support.`);
+      setPaymentError(err.message || "Failed to initiate policy. Please try again.");
       setSummaryOpen(false);
     }
   };
 
   const handleCompletePolicy = async () => {
-    if (!initResult?.policyId || !initResult?.orderId) {
-      setPaymentError("Missing policy or order ID. Please try initiating again.");
+    if (!initResult?.policyId || !initResult?.transactionId) {
+      setPaymentError("Missing policy or transaction ID. Please try initiating again.");
       return;
     }
 
     try {
-      const res = await fetch("http://localhost:8000/api/v1/insurance/policies/complete", {
+      const res = await fetch(`${API_BASE_URL}/insurance/policies/complete`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -365,33 +469,28 @@ export default function PoliciesPage() {
         },
         body: JSON.stringify({
           policyId: initResult.policyId,
-          orderId: initResult.orderId
+          transactionId: initResult.transactionId,
+          chain: "BASE" // or get from config
         })
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Complete Policy Error Response:", errorText);
-        throw new Error(`HTTP error! Status: ${res.status}, Message: ${errorText || 'Unknown error'}`);
+        const errorData = await res.json();
+        throw new Error(errorData.message || `HTTP error! Status: ${res.status}`);
       }
 
       const result: CompleteResult = await res.json();
+      console.log("Complete Policy Response:", JSON.stringify(result, null, 2));
+
       setCompleteResult(result);
-      fetch("http://localhost:8000/api/v1/insurance/policies/me", {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      })
-        .then(res => res.json())
-        .then(data => {
-          setPolicies((data.policies || []) as Policy[]);
-        })
-        .catch(err => console.error("Error refreshing policies:", err));
+      setInitResult(null);
+      setPaymentStatus("");
+
+      // Refresh policies list
+      await fetchPolicies();
     } catch (err: any) {
       console.error("Error completing policy:", err);
-      setPaymentError(`Failed to complete policy: ${err.message}. Please try again or contact support.`);
+      setPaymentError(err.message || "Failed to complete policy. Please try again or contact support.");
     }
   };
 
@@ -403,33 +502,15 @@ export default function PoliciesPage() {
   );
 
   const activeCount = policies.filter(p => p.status.toLowerCase() === "active").length;
-  const expiringCount = policies.filter(p => p.status.toLowerCase() === "expiring soon").length;
+  const pausedCount = policies.filter(p => p.status.toLowerCase() === "paused").length;
   const expiredCount = policies.filter(p => p.status.toLowerCase() === "expired").length;
 
-  const getPolicySummary = (): PolicySummary | null => {
-    const selectedPlan = plans.find(plan => plan._id === form.plan);
-    if (!selectedPlan) return null;
-    const startDate = new Date(form.startDate);
-    const endDate = new Date(startDate);
-    endDate.setMonth(startDate.getMonth() + selectedPlan.coverageDurationMonths);
-
-    return {
-      planName: selectedPlan.name,
-      bodaRegNo: form.bodaRegNo,
-      startDate: startDate.toLocaleDateString(),
-      endDate: endDate.toLocaleDateString(),
-      premiumPaid: Number(selectedPlan.premium), // Number, as per payload
-      coverageAmount: Number(selectedPlan.coverageAmount), // Number, as per payload
-      rider,
-      phone_number: formattedPhoneNumber, // No "+" prefix
-      currency: "KES"
-    };
-  };
+  const selectedPlan = plans.find(plan => plan._id === form.plan);
 
   return (
-    <div className="min-h-screen w-full bg-[#0a0b0b] flex flex-col">
+    <div className="min-h-screen w-full bg-[#0a0b0b] p-8">
       <Header />
-      <main className="flex-1 w-full max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -439,12 +520,13 @@ export default function PoliciesPage() {
               </p>
             </div>
             <Dialog open={inputOpen} onOpenChange={setInputOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-[#d9fc09] cursor-pointer text-[#161616] hover:bg-[#e5ff1a] font-semibold">
-                  <BadgeCheck size={18} />
-                  New Policy
-                </Button>
-              </DialogTrigger>
+              <Button
+                onClick={() => setInputOpen(true)}
+                className="bg-[#d9fc09] cursor-pointer text-[#161616] hover:bg-[#e5ff1a] font-semibold"
+              >
+                <BadgeCheck size={18} className="mr-2" />
+                New Policy
+              </Button>
               <DialogContent className="bg-[#161616] border border-[#232323] text-white max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold text-white">Initiate New Policy</DialogTitle>
@@ -461,6 +543,7 @@ export default function PoliciesPage() {
                         name="bodaRegNo"
                         value={form.bodaRegNo}
                         onChange={handleFormChange}
+                        placeholder="e.g., KBZ 123A"
                         required
                         className="bg-[#232323] border-[#2a2a2a] text-white"
                       />
@@ -477,7 +560,7 @@ export default function PoliciesPage() {
                         <SelectContent className="bg-[#232323] border-[#2a2a2a]">
                           {plans.map(plan => (
                             <SelectItem key={plan._id} value={plan._id} className="text-white hover:bg-[#2a2a2a]">
-                              {plan.name}
+                              {plan.name} - KES {plan.premium}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -491,9 +574,59 @@ export default function PoliciesPage() {
                         value={form.startDate}
                         onChange={handleFormChange}
                         required
+                        min={new Date().toISOString().split('T')[0]}
                         className="bg-[#232323] border-[#2a2a2a] text-white"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <label className="block text-gray-400 capitalize">Mobile Network</label>
+                      <Select
+                        onValueChange={(value) => setForm(prev => ({ ...prev, mobileNetwork: value }))}
+                        value={form.mobileNetwork}
+                      >
+                        <SelectTrigger className="bg-[#232323] border-[#2a2a2a] text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#232323] border-[#2a2a2a]">
+                          <SelectItem value="Safaricom" className="text-white hover:bg-[#2a2a2a]">
+                            Safaricom (M-PESA)
+                          </SelectItem>
+                          <SelectItem value="Airtel" className="text-white hover:bg-[#2a2a2a]">
+                            Airtel Money
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="block text-gray-400 capitalize flex items-center gap-2">
+                        <Phone size={16} />
+                        Phone Number
+                      </label>
+                      <Input
+                        type="tel"
+                        name="phoneNumber"
+                        value={form.phoneNumber}
+                        onChange={handleFormChange}
+                        placeholder="0712345678 or 254712345678"
+                        required
+                        className="bg-[#232323] border-[#2a2a2a] text-white"
+                      />
+                      <p className="text-xs text-gray-500">Format: 0712345678 or 254712345678</p>
+                    </div>
+                    {rider && (
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="block text-gray-400 capitalize flex items-center gap-2">
+                          <Wallet size={16} />
+                          Wallet Address (Beneficiary)
+                        </label>
+                        <Input
+                          type="text"
+                          value={rider}
+                          disabled
+                          className="bg-[#232323] border-[#2a2a2a] text-gray-400 font-mono text-sm"
+                        />
+                      </div>
+                    )}
                   </div>
                   <Button type="submit" className="bg-[#d9fc09] cursor-pointer text-[#161616] hover:bg-[#e5ff1a] font-semibold w-full">
                     Review Policy
@@ -501,52 +634,63 @@ export default function PoliciesPage() {
                 </form>
               </DialogContent>
             </Dialog>
+
+            {/* Summary Dialog */}
             <Dialog open={summaryOpen} onOpenChange={setSummaryOpen}>
               <DialogContent className="bg-[#161616] border border-[#232323] text-white max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold text-white">Policy Summary</DialogTitle>
                   <DialogDescription className="text-gray-400">
-                    Review the policy details before confirming.
+                    Review the policy details before confirming payment.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  {getPolicySummary() && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {selectedPlan && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-[#232323] rounded-lg">
                       <div className="space-y-2">
                         <p className="text-gray-400 text-sm">Plan</p>
-                        <p className="text-white">{getPolicySummary()?.planName}</p>
+                        <p className="text-white font-semibold">{selectedPlan.name}</p>
                       </div>
                       <div className="space-y-2">
                         <p className="text-gray-400 text-sm">Boda Registration No</p>
-                        <p className="text-white">{getPolicySummary()?.bodaRegNo}</p>
+                        <p className="text-white">{form.bodaRegNo}</p>
                       </div>
                       <div className="space-y-2">
                         <p className="text-gray-400 text-sm">Start Date</p>
-                        <p className="text-white">{getPolicySummary()?.startDate}</p>
+                        <p className="text-white">{new Date(form.startDate).toLocaleDateString()}</p>
                       </div>
                       <div className="space-y-2">
                         <p className="text-gray-400 text-sm">End Date</p>
-                        <p className="text-white">{getPolicySummary()?.endDate}</p>
+                        <p className="text-white">
+                          {new Date(new Date(form.startDate).setMonth(new Date(form.startDate).getMonth() + selectedPlan.coverageDurationMonths)).toLocaleDateString()}
+                        </p>
                       </div>
                       <div className="space-y-2">
-                        <p className="text-gray-400 text-sm">Premium Paid</p>
-                        <p className="text-white">{getPolicySummary()?.premiumPaid} KES</p>
+                        <p className="text-gray-400 text-sm">Premium</p>
+                        <p className="text-white font-bold text-lg">KES {selectedPlan.premium.toLocaleString()}</p>
                       </div>
                       <div className="space-y-2">
                         <p className="text-gray-400 text-sm">Coverage Amount</p>
-                        <p className="text-white">{getPolicySummary()?.coverageAmount} KES</p>
+                        <p className="text-white font-semibold">KES {selectedPlan.coverageAmount.toLocaleString()}</p>
                       </div>
                       <div className="space-y-2">
-                        <p className="text-gray-400 text-sm">Rider Address</p>
-                        <p className="text-white font-mono text-sm truncate">{getPolicySummary()?.rider}</p>
+                        <p className="text-gray-400 text-sm">Payment Number</p>
+                        <p className="text-white">{form.phoneNumber}</p>
                       </div>
                       <div className="space-y-2">
-                        <p className="text-gray-400 text-sm">Phone Number</p>
-                        <p className="text-white">{getPolicySummary()?.phone_number}</p>
+                        <p className="text-gray-400 text-sm">Network</p>
+                        <p className="text-white">{form.mobileNetwork}</p>
                       </div>
                     </div>
-                  )}
-                </div>
+                    <Alert className="bg-blue-500/10 border-blue-500/20">
+                      <AlertTitle className="text-blue-400">Payment Instructions</AlertTitle>
+                      <AlertDescription className="text-gray-300">
+                        After clicking "Confirm", you'll receive a payment prompt on your phone.
+                        Enter your M-PESA/Airtel PIN to complete the transaction.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
                 <DialogFooter className="mt-6">
                   <Button
                     variant="outline"
@@ -562,28 +706,26 @@ export default function PoliciesPage() {
                     className="bg-[#d9fc09] text-[#161616] hover:bg-[#e5ff1a] font-semibold"
                     onClick={handleInitiatePolicy}
                   >
-                    Confirm and Initiate
+                    Confirm and Pay
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
+
+          {/* Search and Filter */}
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-[#161616] border border-[#232323] rounded-xl p-4">
             <div className="relative flex-1 w-full sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
               <Input
                 type="text"
-                placeholder="Search by ID, type, vehicle, or policy hash..."
+                placeholder="Search policies..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-[#232323] border-[#2a2a2a] text-white placeholder:text-gray-500 focus-visible:ring-[#d9fc09]"
+                className="pl-10 bg-[#232323] border-[#2a2a2a] text-white placeholder:text-gray-500"
               />
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="border-[#232323] hover:bg-[#232323]">
-                <Filter size={16} />
-                Filter
-              </Button>
               <div className="flex items-center bg-[#232323] rounded-lg p-1 border border-[#2a2a2a]">
                 <button
                   onClick={() => setViewMode("table")}
@@ -607,6 +749,8 @@ export default function PoliciesPage() {
             </div>
           </div>
         </div>
+
+        {/* Status Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="bg-[#161616] border border-[#232323] rounded-xl p-5 hover:border-[#2a2a2a] transition">
             <div className="flex items-center justify-between">
@@ -622,11 +766,11 @@ export default function PoliciesPage() {
           <div className="bg-[#161616] border border-[#232323] rounded-xl p-5 hover:border-[#2a2a2a] transition">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400 text-sm mb-1">Expiring Soon</p>
-                <p className="text-2xl font-bold text-white">{expiringCount}</p>
+                <p className="text-gray-400 text-sm mb-1">Pending</p>
+                <p className="text-2xl font-bold text-white">{pausedCount}</p>
               </div>
               <div className="p-3 bg-yellow-500/10 rounded-lg">
-                <AlertTriangle className="text-yellow-400" size={24} />
+                <Clock className="text-yellow-400" size={24} />
               </div>
             </div>
           </div>
@@ -642,15 +786,28 @@ export default function PoliciesPage() {
             </div>
           </div>
         </div>
+
+        {/* Payment Status Alerts */}
         {polling && (
           <Alert className="bg-[#161616] border-[#232323] mb-6">
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            <AlertTitle className="text-white">Waiting for Payment</AlertTitle>
+            <RefreshCw className="h-4 w-4 animate-spin text-[#d9fc09]" />
+            <AlertTitle className="text-white">Waiting for Payment Confirmation</AlertTitle>
             <AlertDescription className="text-gray-300">
-              Please complete the payment on your phone. We're checking for confirmation... Order ID: {initResult?.orderId || "N/A"}
+              <div className="space-y-2 mt-2">
+                <p>Please complete the payment on your phone. We're checking for confirmation...</p>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-400">Transaction ID:</span>
+                  <span className="font-mono text-[#d9fc09]">{initResult?.transactionId}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-400">Status:</span>
+                  <span className="text-white">{paymentStatus}</span>
+                </div>
+              </div>
             </AlertDescription>
           </Alert>
         )}
+
         {paymentError && (
           <Alert variant="destructive" className="mb-6">
             <AlertTriangle className="h-4 w-4" />
@@ -658,142 +815,210 @@ export default function PoliciesPage() {
             <AlertDescription>{paymentError}</AlertDescription>
           </Alert>
         )}
-        {initResult?.orderId && !polling && !completeResult && (
-          <div className="bg-[#161616] border border-[#232323] p-6 rounded-xl max-w-xl mx-auto mb-6">
-            <p className="text-white font-bold mb-3">Payment Required</p>
-            <div className="text-gray-300 text-sm mb-2">
-              Please complete payment. Order ID: <span className="font-mono text-[#d9fc09]">{initResult.orderId}</span>
-            </div>
-            <Button className="bg-[#d9fc09] text-[#161616] font-semibold mt-3" onClick={handleCompletePolicy}>
-              Complete Policy
-            </Button>
-          </div>
+
+        {initResult && !polling && !completeResult && (
+          <Alert className="bg-[#161616] border-[#232323] mb-6">
+            <Clock className="h-4 w-4 text-yellow-400" />
+            <AlertTitle className="text-white">Payment Initiated</AlertTitle>
+            <AlertDescription className="text-gray-300">
+              <div className="space-y-3 mt-2">
+                <p>Payment has been initiated. If you completed the payment, click below to finalize your policy.</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-400">Policy Number:</span>
+                    <span className="font-mono text-[#d9fc09]">{initResult.policyNumber}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-400">Transaction ID:</span>
+                    <span className="font-mono text-[#d9fc09]">{initResult.transactionId}</span>
+                  </div>
+                </div>
+                <Button
+                  className="bg-[#d9fc09] text-[#161616] font-semibold mt-3"
+                  onClick={handleCompletePolicy}
+                >
+                  Complete Policy Creation
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
         )}
-        {completeResult?.policy && (
-          <div className="bg-green-900 border border-green-500 p-6 rounded-xl max-w-xl mx-auto mb-6">
-            <p className="text-white font-bold mb-3">Policy Created Successfully</p>
-            <div className="text-gray-300 text-sm mb-2">
-              Policy Number: <span className="font-mono text-[#d9fc09]">{completeResult.policy.policyNumber}</span>
-            </div>
-            <div className="text-gray-300 text-sm mb-2">
-              Transaction Hash: <span className="font-mono text-[#d9fc09]">{completeResult.blockchain?.transactionHash || "N/A"}</span>
-            </div>
-            <Button className="bg-[#d9fc09] text-[#161616] font-semibold mt-3" onClick={() => setCompleteResult(null)}>
-              Close
-            </Button>
-          </div>
+
+        {completeResult && (
+          <Alert className="bg-green-900/20 border-green-500/30 mb-6">
+            <CheckCircle2 className="h-4 w-4 text-green-400" />
+            <AlertTitle className="text-white">Policy Created Successfully!</AlertTitle>
+            <AlertDescription className="text-gray-300">
+              <div className="space-y-3 mt-2">
+                <p>Your insurance policy has been successfully created and activated on the blockchain.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-400">Policy Number:</span>
+                      <span className="font-mono text-[#d9fc09]">{completeResult.policy.policyNumber}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-400">Vehicle:</span>
+                      <span className="text-white">{completeResult.policy.bodaRegNo}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-400">Coverage:</span>
+                      <span className="text-white">KES {completeResult.policy.coverageAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-400">Blockchain Policy ID:</span>
+                      <span className="font-mono text-[#d9fc09] text-xs">{completeResult.blockchain.policyId}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-400">Payment:</span>
+                      <span className="text-white">KES {completeResult.payment.amountKES} (≈ ${completeResult.payment.amountUSDC} USDC)</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    variant="outline"
+                    className="border-green-500/30 hover:bg-green-500/10 text-white"
+                    onClick={() => openExplorer(completeResult.blockchain.transactionHash)}
+                  >
+                    <ExternalLink size={16} className="mr-2" />
+                    View on Blockchain
+                  </Button>
+                  <Button
+                    className="bg-[#d9fc09] text-[#161616] font-semibold"
+                    onClick={() => {
+                      setCompleteResult(null);
+                      setInitResult(null);
+                    }}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
         )}
+
+        {/* Policies Table/List View */}
         {viewMode === "table" ? (
           <div className="bg-[#161616] border border-[#232323] rounded-xl overflow-hidden">
             <Table>
               <TableHeader className="bg-[#1a1a1a]">
                 <TableRow className="border-b border-[#232323] hover:bg-transparent">
-                  <TableHead className="text-gray-400 font-semibold">Policy ID</TableHead>
-                  <TableHead className="text-gray-400 font-semibold">Type</TableHead>
+                  <TableHead className="text-gray-400 font-semibold">Policy Number</TableHead>
+                  <TableHead className="text-gray-400 font-semibold">Plan</TableHead>
                   <TableHead className="text-gray-400 font-semibold">Vehicle</TableHead>
                   <TableHead className="text-gray-400 font-semibold">Coverage Period</TableHead>
                   <TableHead className="text-gray-400 font-semibold">Premium</TableHead>
                   <TableHead className="text-gray-400 font-semibold">Status</TableHead>
-                  <TableHead className="text-gray-400 font-semibold">Policy Record</TableHead>
+                  <TableHead className="text-gray-400 font-semibold">Blockchain</TableHead>
                   <TableHead className="text-right text-gray-400 font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-gray-500">Loading...</TableCell>
+                    <TableCell colSpan={8} className="text-center py-12 text-gray-500">
+                      <RefreshCw className="animate-spin mx-auto mb-2" size={24} />
+                      Loading policies...
+                    </TableCell>
                   </TableRow>
-                ) : (
-                  filteredPolicies.length > 0 ? (
-                    filteredPolicies.map((policy) => (
-                      <TableRow
-                        key={policy._id}
-                        className="border-b border-[#232323] hover:bg-[#1a1a1a] transition"
-                      >
-                        <TableCell className="font-medium text-white">
-                          <div className="flex items-center gap-2">
-                            <BadgeCheck className="text-[#d9fc09]" size={18} />
-                            {policy.policyNumber || "N/A"}
+                ) : filteredPolicies.length > 0 ? (
+                  filteredPolicies.map((policy) => (
+                    <TableRow
+                      key={policy._id}
+                      className="border-b border-[#232323] hover:bg-[#1a1a1a] transition"
+                    >
+                      <TableCell className="font-medium text-white">
+                        <div className="flex items-center gap-2">
+                          <BadgeCheck className="text-[#d9fc09]" size={18} />
+                          {policy.policyNumber || "N/A"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-gray-300">{policy.plan?.name || "Unknown"}</TableCell>
+                      <TableCell className="text-gray-300">{policy.bodaRegNo || "N/A"}</TableCell>
+                      <TableCell className="text-gray-300">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1 text-sm">
+                            <Calendar size={12} className="text-gray-500" />
+                            {new Date(policy.startDate).toLocaleDateString()}
                           </div>
-                        </TableCell>
-                        <TableCell className="text-gray-300">{policy.plan?.name || "Unknown Plan"}</TableCell>
-                        <TableCell className="text-gray-300">{policy.bodaRegNo || "N/A"}</TableCell>
-                        <TableCell className="text-gray-300">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1 text-sm">
-                              <Calendar size={12} className="text-gray-500" />
-                              {policy.startDate ? new Date(policy.startDate).toLocaleDateString() : "N/A"}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              to {policy.endDate ? new Date(policy.endDate).toLocaleDateString() : "N/A"}
-                            </div>
+                          <div className="text-xs text-gray-500">
+                            to {new Date(policy.endDate).toLocaleDateString()}
                           </div>
-                        </TableCell>
-                        <TableCell className="text-white font-semibold">KES {policy.premiumPaid || "0"}</TableCell>
-                        <TableCell>
-                          <Badge className={`${getStatusColor(policy.status)} border font-medium flex items-center gap-1 w-fit`}>
-                            {getStatusIcon(policy.status)}
-                            {policy.status || "Unknown"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-white font-semibold">
+                        KES {typeof policy.premiumPaid === 'number'
+                          ? policy.premiumPaid.toLocaleString()
+                          : policy.premiumPaid}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={`${getStatusColor(policy.status)} border font-medium flex items-center gap-1 w-fit`}>
+                          {getStatusIcon(policy.status)}
+                          {policy.status || "Unknown"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {policy.policyId ? (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
-                                  onClick={() => openExplorer(policy.orderEscrowId)}
+                                  onClick={() => openExplorer(policy.chainTx)}
                                   className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#d9fc09] transition group"
-                                  disabled={!policy.orderEscrowId}
                                 >
-                                  <FileCheck size={14} className="text-gray-500 group-hover:text-[#d9fc09]" />
-                                  <span className="font-mono">{policy.orderEscrowId?.slice(0, 10) || "N/A"}...</span>
-                                  {policy.orderEscrowId && <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition" />}
+                                  <ShieldCheck size={14} className="text-green-400" />
+                                  <span className="font-mono">#{policy.policyId}</span>
+                                  <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition" />
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent className="bg-[#232323] border-[#2a2a2a] text-white">
-                                <p className="text-xs">View policy record</p>
+                                <p className="text-xs">View on blockchain</p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="hover:bg-[#232323]">
-                                  <MoreVertical size={18} className="text-gray-400" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-[#232323] border-[#2a2a2a]">
-                                <DropdownMenuItem
-                                  onClick={() => copyToClipboard(policy.orderEscrowId)}
-                                  className="text-gray-300 hover:bg-[#2a2a2a] hover:text-white cursor-pointer"
-                                  disabled={!policy.orderEscrowId}
-                                >
-                                  <Copy size={16} className="mr-2" />
-                                  Copy Policy Hash
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => openExplorer(policy.orderEscrowId)}
-                                  className="text-gray-300 hover:bg-[#2a2a2a] hover:text-white cursor-pointer"
-                                  disabled={!policy.orderEscrowId}
-                                >
-                                  <ExternalLink size={16} className="mr-2" />
-                                  View Record
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-gray-500">
-                        No policies found matching your search.
+                        ) : (
+                          <span className="text-xs text-gray-500">Pending</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="hover:bg-[#232323]">
+                              <MoreVertical size={18} className="text-gray-400" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-[#232323] border-[#2a2a2a]">
+                            <DropdownMenuItem
+                              onClick={() => copyToClipboard(policy.chainTx)}
+                              className="text-gray-300 hover:bg-[#2a2a2a] hover:text-white cursor-pointer"
+                              disabled={!policy.chainTx}
+                            >
+                              <Copy size={16} className="mr-2" />
+                              Copy TX Hash
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => openExplorer(policy.chainTx)}
+                              className="text-gray-300 hover:bg-[#2a2a2a] hover:text-white cursor-pointer"
+                              disabled={!policy.chainTx}
+                            >
+                              <ExternalLink size={16} className="mr-2" />
+                              View on Explorer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  )
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-12 text-gray-500">
+                      No policies found. Create your first policy to get started!
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
@@ -802,51 +1027,54 @@ export default function PoliciesPage() {
           <div className="flex flex-col gap-4">
             {loading ? (
               <div className="bg-[#161616] border border-[#232323] rounded-xl p-12 text-center">
-                <p className="text-gray-500">Loading...</p>
+                <RefreshCw className="animate-spin mx-auto mb-2 text-[#d9fc09]" size={32} />
+                <p className="text-gray-500">Loading policies...</p>
               </div>
-            ) : (
-              filteredPolicies.length > 0 ? (
-                filteredPolicies.map((policy) => (
-                  <div
-                    key={policy._id}
-                    className="bg-[#161616] border border-[#232323] rounded-xl p-6 hover:border-[#2a2a2a] transition-all group"
-                  >
-                    <div className="flex flex-col gap-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className="p-3 bg-[#d9fc09]/10 rounded-xl group-hover:bg-[#d9fc09]/20 transition">
-                            <BadgeCheck className="text-[#d9fc09]" size={28} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="text-lg font-bold text-white">{policy.policyNumber || "N/A"}</h3>
-                              <Badge className={`${getStatusColor(policy.status)} border flex items-center gap-1`}>
-                                {getStatusIcon(policy.status)}
-                                {policy.status || "Unknown"}
-                              </Badge>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2 text-gray-300">
-                                <span className="text-sm font-medium">{policy.plan?.name || "Unknown Plan"} Policy</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-gray-400">
-                                {policy.bodaRegNo || "N/A"}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-gray-500">
-                                <Calendar size={14} />
-                                {policy.startDate ? new Date(policy.startDate).toLocaleDateString() : "N/A"} → {policy.endDate ? new Date(policy.endDate).toLocaleDateString() : "N/A"}
-                              </div>
-                            </div>
-                          </div>
+            ) : filteredPolicies.length > 0 ? (
+              filteredPolicies.map((policy) => (
+                <div
+                  key={policy._id}
+                  className="bg-[#161616] border border-[#232323] rounded-xl p-6 hover:border-[#2a2a2a] transition-all group"
+                >
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="p-3 bg-[#d9fc09]/10 rounded-xl group-hover:bg-[#d9fc09]/20 transition">
+                          <BadgeCheck className="text-[#d9fc09]" size={28} />
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <span className="text-xs text-gray-500">Annual Premium</span>
-                          <span className="text-xl font-bold text-white flex items-center gap-2">
-                            <CreditCard size={18} className="text-[#d9fc09]" />
-                            KES {policy.premiumPaid || "0"}
-                          </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-bold text-white">{policy.policyNumber || "N/A"}</h3>
+                            <Badge className={`${getStatusColor(policy.status)} border flex items-center gap-1`}>
+                              {getStatusIcon(policy.status)}
+                              {policy.status || "Unknown"}
+                            </Badge>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-gray-300">
+                              <span className="text-sm font-medium">{policy.plan?.name || "Unknown Plan"}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-400">
+                              Vehicle: {policy.bodaRegNo || "N/A"}
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <Calendar size={14} />
+                              {new Date(policy.startDate).toLocaleDateString()} → {new Date(policy.endDate).toLocaleDateString()}
+                            </div>
+                          </div>
                         </div>
                       </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="text-xs text-gray-500">Premium Paid</span>
+                        <span className="text-xl font-bold text-white flex items-center gap-2">
+                          <CreditCard size={18} className="text-[#d9fc09]" />
+                          KES {typeof policy.premiumPaid === 'number'
+                            ? policy.premiumPaid.toLocaleString()
+                            : policy.premiumPaid}
+                        </span>
+                      </div>
+                    </div>
+                    {policy.policyId && (
                       <div className="bg-[#232323] rounded-lg p-4 border border-[#2a2a2a]">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
@@ -854,13 +1082,12 @@ export default function PoliciesPage() {
                               <ShieldCheck className="text-[#d9fc09]" size={18} />
                             </div>
                             <div>
-                              <p className="text-xs text-gray-400 mb-1">Policy Record</p>
+                              <p className="text-xs text-gray-400 mb-1">Blockchain Policy ID</p>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-mono text-white">{policy.chainTx?.slice(0, 10) || "N/A"}...</span>
+                                <span className="text-sm font-mono text-white">#{policy.policyId}</span>
                                 <button
-                                  onClick={() => copyToClipboard(policy.orderEscrowId)}
+                                  onClick={() => copyToClipboard(policy.chainTx)}
                                   className="text-gray-500 hover:text-[#d9fc09] transition"
-                                  disabled={!policy.orderEscrowId}
                                 >
                                   <Copy size={14} />
                                 </button>
@@ -870,68 +1097,49 @@ export default function PoliciesPage() {
                           <button
                             onClick={() => openExplorer(policy.chainTx)}
                             className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a] hover:bg-[#2a2a2a] rounded-lg text-sm text-gray-300 hover:text-[#d9fc09] transition group"
-                            disabled={!policy.chainTx}
                           >
-                            <span>View Record</span>
-                            {policy.chainTx && <ExternalLink size={14} className="group-hover:translate-x-0.5 transition-transform" />}
+                            <span>View on Explorer</span>
+                            <ExternalLink size={14} className="group-hover:translate-x-0.5 transition-transform" />
                           </button>
                         </div>
-                        <div className="mt-3 pt-3 border-t border-[#2a2a2a] flex items-center gap-6 text-xs text-gray-500">
-                          <div>
-                            <span className="text-gray-600">Timestamp:</span>
-                            <span className="ml-1">{policy.createdAt ? new Date(policy.createdAt).toLocaleString() : "N/A"}</span>
+                        {policy.chainTx && (
+                          <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                            <div className="text-xs text-gray-500">
+                              <span className="text-gray-600">TX:</span>
+                              <span className="ml-1 font-mono">{policy.chainTx.slice(0, 20)}...</span>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 pt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-[#232323] hover:bg-[#232323] hover:text-[#d9fc09] flex-1"
-                        >
-                          <Eye size={16} />
-                          View Policy
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-[#232323] hover:bg-[#232323] hover:text-[#d9fc09] flex-1"
-                        >
-                          <Download size={16} />
-                          Download
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="hover:bg-[#232323]">
-                              <MoreVertical size={18} className="text-gray-400" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-[#232323] border-[#2a2a2a]">
-                            <DropdownMenuItem
-                              onClick={() => copyToClipboard(policy.orderEscrowId)}
-                              className="text-gray-300 hover:bg-[#2a2a2a] hover:text-white cursor-pointer"
-                              disabled={!policy.orderEscrowId}
-                            >
-                              <Copy size={16} className="mr-2" />
-                              Copy Policy Hash
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-gray-300 hover:bg-[#2a2a2a] hover:text-white cursor-pointer"
-                            >
-                              <FileText size={16} className="mr-2" />
-                              Request Certificate
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+                    )}
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-[#232323] hover:bg-[#232323] hover:text-[#d9fc09] flex-1"
+                      >
+                        <Eye size={16} className="mr-2" />
+                        View Details
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-[#232323] hover:bg-[#232323] hover:text-[#d9fc09] flex-1"
+                        disabled={!policy.policyId}
+                      >
+                        <Download size={16} className="mr-2" />
+                        Download Certificate
+                      </Button>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="bg-[#161616] border border-[#232323] rounded-xl p-12 text-center">
-                  <p className="text-gray-500">No policies found matching your search.</p>
                 </div>
-              )
+              ))
+            ) : (
+              <div className="bg-[#161616] border border-[#232323] rounded-xl p-12 text-center">
+                <BadgeCheck className="mx-auto mb-4 text-gray-600" size={48} />
+                <p className="text-gray-500 mb-2">No policies found</p>
+                <p className="text-gray-600 text-sm">Create your first policy to get started!</p>
+              </div>
             )}
           </div>
         )}

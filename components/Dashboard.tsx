@@ -1,312 +1,299 @@
 "use client";
-import { useState, useEffect } from "react";
-import Header from "./shared-components/Header";
-import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
+
+import { useEffect, useState } from "react";
+import Header from "@/components/shared-components/Header";
 import {
   ShieldCheck,
-  FileText,
   BadgeHelp,
-  BarChart2,
-  CheckCircle2,
-  BadgePercent,
-  Info,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
-  Card,
-  CardAction,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import UserActivityTable from "@/components/shared-components/userActivity";
-import { usePlans } from "@/hooks/plans";
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Bar,
+  Line,
+  LineChart,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+} from "recharts";
 
-// const plans = [
-//   {
-//     id: "comprehensive",
-//     name: "Comprehensive",
-//     price: "KES 10,000 / year",
-//     description: "Full boda boda protection: theft, fire, accident, third-party liability, rider injury cover.",
-//     features: [
-//       "Third-party coverage",
-//       "Accidents, fire, theft",
-//       "Quick claim processing",
-//       "Personal accident cover",
-//     ],
-//     best: true,
-//   },
-//   {
-//     id: "thirdparty",
-//     name: "Third Party Only",
-//     price: "KES 3,500 / year",
-//     description: "Meets legal requirements, covers only third-party damages and injuries.",
-//     features: [
-//       "Third-party liability",
-//       "Legal compliance",
-//       "Easy renewal",
-//     ],
-//     best: false,
-//   },
-//   {
-//     id: "personal",
-//     name: "Personal Accident",
-//     price: "KES 1,200 / year",
-//     description: "Covers the rider for accidental medical costs and disability.",
-//     features: [
-//       "Rider medical cover",
-//       "Disability payout",
-//       "Add-on to other plans",
-//     ],
-//     best: false,
-//   },
-// ];
+const baseUrl = process.env.NODE_ENV === "development" ? "http://localhost:8000" : "";
 
-function MotorcycleInsuranceSummaryCards({ nextPayment = "2026-01-14" }: { nextPayment?: string }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-      <Card className="bg-[#161616] border border-[#232323] hover:border-[#2a2a2a] transition-colors @container/card">
-        <CardHeader>
-          <CardDescription>Covered Motorcycles</CardDescription>
-          <CardTitle className="text-3xl font-bold tabular-nums text-white mt-2">
-            283
-          </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <IconTrendingUp className="w-3.5 h-3.5" />
-              +6%
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-2 text-sm">
-          <div className="flex gap-2 font-medium text-white items-center">
-            New bikes covered this month
-            <IconTrendingUp className="size-4 text-green-400" />
-          </div>
-          <div className="text-gray-400 text-xs">
-            Next Payment: <span className="text-[#d9fc09] font-semibold">{nextPayment}</span>
-          </div>
-        </CardFooter>
-      </Card>
+interface Policy {
+  _id: string;
+  policyNumber: string;
+  bodaRegNo: string;
+  plan?: { name?: string };
+  status: string;
+  isActive: boolean;
+  startDate: string;
+  endDate: string;
+  coverageAmount: number;
+  premiumPaid: number;
+}
 
-      <Card className="bg-[#161616] border border-[#232323] hover:border-[#2a2a2a] transition-colors @container/card">
-        <CardHeader>
-          <CardDescription>Active Policies</CardDescription>
-          <CardTitle className="text-3xl font-bold tabular-nums text-white mt-2">
-            231
-          </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <IconTrendingDown className="w-3.5 h-3.5" />
-              -2%
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-2 text-sm">
-          <div className="flex gap-2 font-medium text-white items-center">
-            Month-on-month retention
-            <IconTrendingDown className="size-4 text-red-400" />
-          </div>
-          <div className="text-gray-400 text-xs">Continuous coverage improvement</div>
-        </CardFooter>
-      </Card>
-
-      <Card className="bg-[#161616] border border-[#232323] hover:border-[#2a2a2a] transition-colors @container/card">
-        <CardHeader>
-          <CardDescription>Claims Filed (Year)</CardDescription>
-          <CardTitle className="text-3xl font-bold tabular-nums text-white mt-2">
-            47
-          </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <IconTrendingUp className="w-3.5 h-3.5" />
-              +15%
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-2 text-sm">
-          <div className="flex gap-2 font-medium text-white items-center">
-            Yearly claims are up
-            <IconTrendingUp className="size-4 text-green-400" />
-          </div>
-          <div className="text-gray-400 text-xs">Most common: accident cover</div>
-        </CardFooter>
-      </Card>
-
-      <Card className="bg-[#161616] border border-[#232323] hover:border-[#2a2a2a] transition-colors @container/card">
-        <CardHeader>
-          <CardDescription>On-time Renewals</CardDescription>
-          <CardTitle className="text-3xl font-bold tabular-nums text-white mt-2">
-            92%
-          </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <IconTrendingUp className="w-3.5 h-3.5" />
-              +3%
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-2 text-sm">
-          <div className="flex gap-2 font-medium text-white items-center">
-            Great renewal rate
-            <IconTrendingUp className="size-4 text-green-400" />
-          </div>
-          <div className="text-gray-400 text-xs">Most riders renew on time</div>
-        </CardFooter>
-      </Card>
-    </div>
-  );
+interface Claim {
+  _id: string;
+  claimNumber: string;
+  bodaRegNo: string;
+  incidentDate: string;
+  amountClaimed: number;
+  status: string;
+  chainTx?: string;
 }
 
 export default function Dashboard() {
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [plans, isLoading, error] = usePlans();
-
-  const summary = {
-    totalPolicies: 3,
-    activePolicies: 2,
-    totalClaims: 5,
-    lastClaim: "2025-09-30",
-    nextRenewal: "2026-01-14",
-    currentPlan: "Comprehensive",
-    paidClaims: 1,
-    processingClaims: 3,
-    rejectedClaims: 1,
-    nextPayment: "2026-01-14",
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("jwt");
+    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   };
 
-  const mockClaims = [
-    { id: 1, dateFiled: "2025-09-30", status: "Processing", description: "Accident Coverage" },
-    { id: 2, dateFiled: "2025-06-15", status: "Paid", description: "Minor Damage Payout" },
-    { id: 3, dateFiled: "2025-03-11", status: "Rejected", description: "Stolen Bike (No Evidence)" },
-  ];
-  const mockPolicies = [
-    { id: 1, issueDate: "2025-01-14", active: true, name: "Comprehensive", renewalDate: "2026-01-14" },
-    { id: 2, issueDate: "2024-01-14", active: false, name: "Third Party Only", renewalDate: "2025-01-14" },
-  ];
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const [policyRes, claimRes] = await Promise.all([
+          fetch(`${baseUrl}/api/v1/insurance/policies/me`, { headers: getAuthHeaders() }),
+          fetch(`${baseUrl}/api/v1/insurance/claims`, { headers: getAuthHeaders() }),
+        ]);
+        const policyData = await policyRes.json();
+        const claimData = await claimRes.json();
+        setPolicies(policyData.policies || []);
+        setClaims(claimData.claims || []);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const monthlyData = aggregateMonthlyData(policies, claims);
+  const claimStatusStats = aggregateClaimStatus(claims);
+  const totalPremium = policies.reduce((a, b) => a + (b.premiumPaid || 0), 0);
 
   return (
-    <div className="min-h-screen bg-[#0a0b0b] flex flex-col">
+    <div className="min-h-screen bg-[#0a0b0b] text-white">
       <Header />
-      <main className="flex-1 flex flex-col items-center py-12 w-full">
-        <div className="max-w-7xl w-full px-4 sm:px-6 lg:px-8">
-          <MotorcycleInsuranceSummaryCards nextPayment={summary.nextPayment} />
+      <main className="py-12 px-6 max-w-7xl mx-auto space-y-10">
+        {/* Summary cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+          <SummaryCard title="Total Policies" value={policies.length} icon={<ShieldCheck />} change="+4%" trend="up" />
+          <SummaryCard title="Active Policies" value={policies.filter(p => p.isActive).length} icon={<TrendingUp />} change="+8%" trend="up" />
+          <SummaryCard title="Total Claims" value={claims.length} icon={<BadgeHelp />} change="+12%" trend="up" />
+          <SummaryCard title="Total Premium" value={`${totalPremium.toLocaleString()} KES`} icon={<TrendingDown />} change="+6%" trend="down" />
+        </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-16">
-            <div className="lg:col-span-1">
-              <div className="flex items-center justify-start lg:justify-end gap-2 mb-4">
-                <BarChart2 size={24} className="text-[#d9fc09]" />
-                <span className="text-lg text-white font-bold">Activity Overview</span>
-              </div>
-              <div className="bg-[#161616] rounded-xl shadow-lg border border-[#232323] hover:border-[#2a2a2a] transition-colors">
-                <div className="flex flex-col items-start lg:items-end justify-center text-left lg:text-right p-8 space-y-6">
-                  <div className="space-y-3 w-full">
-                    <div className="text-sm text-gray-400">
-                      Last claim filed
-                      <div className="text-[#d9fc09] font-semibold mt-1">{summary.lastClaim}</div>
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      Current plan
-                      <div className="text-[#d9fc09] font-semibold mt-1">{summary.currentPlan}</div>
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      Policies
-                      <div className="text-white font-medium mt-1">
-                        {summary.activePolicies} active, {summary.totalPolicies - summary.activePolicies} expired
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      Claims
-                      <div className="text-white font-medium mt-1">
-                        {summary.paidClaims} paid, {summary.processingClaims} processing, {summary.rejectedClaims} rejected
-                      </div>
-                    </div>
-                  </div>
-                  <div className="inline-flex items-center px-5 py-2.5 rounded-full bg-[#d9fc09] text-[#161616] font-semibold text-sm shadow-lg">
-                    <CheckCircle2 size={18} className="mr-2" />
-                    You are fully covered!
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* 3 Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <ChartCard title="Claims by Status">
+            <ChartContainer config={{}}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Pie data={claimStatusStats} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
+                    {claimStatusStats.map((_, idx) => (
+                      <Cell key={idx} fill={`hsl(var(--chart-${(idx % 5) + 1}))`} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </ChartCard>
 
-            <div className="lg:col-span-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white">Recent Activity</h3>
-              </div>
-              <UserActivityTable claims={mockClaims} policies={mockPolicies} />
-            </div>
+          <ChartCard title="Policy Growth (Line)">
+            <ChartContainer config={{}}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyData}>
+                  <CartesianGrid stroke="hsl(var(--muted))" vertical={false} />
+                  <XAxis dataKey="month" stroke="#a1a1aa" />
+                  <YAxis stroke="#a1a1aa" />
+                  <Line type="monotone" dataKey="policies" stroke="hsl(var(--chart-1))" strokeWidth={2} />
+                  <Line type="monotone" dataKey="claims" stroke="hsl(var(--chart-2))" strokeWidth={2} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </ChartCard>
+
+          <ChartCard title="Premium Distribution">
+            <ChartContainer config={{}}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyData}>
+                  <CartesianGrid stroke="hsl(var(--muted))" vertical={false} />
+                  <XAxis dataKey="month" stroke="#a1a1aa" />
+                  <YAxis stroke="#a1a1aa" />
+                  <Bar dataKey="policies" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </ChartCard>
+        </div>
+
+        {/* Policies and Claims Tables */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+          <DataTable title="My Policies" dataType="policy" data={policies} />
+          <DataTable title="My Claims" dataType="claim" data={claims} />
+        </div>
+
+        {/* Monthly Activity and side chart */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
+          <div className="lg:col-span-3">
+            <Card className="bg-[#161616] border border-[#232323]">
+              <CardHeader>
+                <CardTitle>Monthly Activity</CardTitle>
+                <CardDescription>Policies and Claims (Primary-based)</CardDescription>
+              </CardHeader>
+              <ChartContainer config={{}}>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={monthlyData}>
+                    <CartesianGrid stroke="hsl(var(--muted))" vertical={false} />
+                    <XAxis dataKey="month" stroke="#a1a1aa" />
+                    <YAxis stroke="#a1a1aa" />
+                    <Bar dataKey="policies" fill="hsl(var(--chart-1))" radius={[5, 5, 0, 0]} />
+                    <Bar dataKey="claims" fill="hsl(var(--chart-2))" radius={[5, 5, 0, 0]} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </Card>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-white mb-2">Available Insurance Plans</h2>
-            <p className="text-gray-400">Choose the perfect coverage for your boda boda</p>
-          </div>
-
-          {isLoading && <div className="text-white">Loading plans...</div>}
-          {error && <div className="text-red-500">{error}</div>}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {(plans as Array<any> ?? [])?.map((plan: any) => (
-              <div
-                key={plan._id || plan.id || plan.name}
-                className={`relative bg-[#161616] rounded-2xl p-8 flex flex-col shadow-xl border transition-all hover:shadow-2xl hover:-translate-y-1 ${plan.type === "comprehensive"
-                    ? "border-[#d9fc09] ring-2 ring-[#d9fc09] ring-opacity-50"
-                    : "border-[#232323] hover:border-[#2a2a2a]"
-                  }`}
-              >
-                {plan.type === "comprehensive" && (
-                  <span className="absolute -top-3 right-8 text-xs px-4 py-1.5 rounded-full bg-[#d9fc09] text-[#161616] font-bold shadow-lg">
-                    Most Popular
-                  </span>
-                )}
-
-                <div className="flex items-center mb-4">
-                  <div className="p-2 rounded-lg bg-[#d9fc09]/10 mr-3">
-                    <ShieldCheck size={28} className="text-[#d9fc09]" />
-                  </div>
-                  <div className="text-xl text-white font-bold">{plan.name}</div>
-                </div>
-
-                <div className="text-3xl text-white font-bold mb-2">
-                  {typeof plan.premium === "number"
-                    ? `KES ${plan.premium.toLocaleString()} / year`
-                    : ""}
-                </div>
-                <div className="text-gray-400 text-sm mb-6 leading-relaxed">{plan.description}</div>
-
-                <ul className="mb-8 flex-1 space-y-3">
-                  {(plan.inclusions || []).map((f: any, i: any) => (
-                    <li className="flex items-start gap-3 text-gray-200 text-sm" key={i}>
-                      <BadgePercent size={18} className="text-[#d9fc09] mt-0.5 flex-shrink-0" />
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="space-y-3">
-                  <button
-                    className={`w-full px-6 py-3 rounded-xl text-sm font-semibold transition-all shadow-md hover:shadow-lg ${plan.type === "comprehensive"
-                        ? "bg-[#d9fc09] text-[#161616] hover:bg-[#e5ff1a]"
-                        : "bg-[#232323] text-white hover:bg-[#2a2a2a]"
-                      }`}
-                    onClick={() => alert(`Selected plan: ${plan.name}`)}
-                  >
-                    Choose Plan
-                  </button>
-                  <button
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#1a1a1a] text-[#d9fc09] hover:bg-[#202020] border border-[#232323] hover:border-[#2a2a2a] transition-all text-sm font-medium"
-                    onClick={() => alert(`More info: ${plan.name}`)}
-                  >
-                    <Info size={16} /> More Info
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ChartCard title="Policies by Vehicle">
+            <ChartContainer config={{}}>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={vehicleData(policies)}>
+                  <CartesianGrid stroke="hsl(var(--muted))" vertical={false} />
+                  <XAxis dataKey="bodaRegNo" stroke="#a1a1aa" />
+                  <YAxis stroke="#a1a1aa" />
+                  <Bar dataKey="count" fill="hsl(var(--chart-3))" radius={[5, 5, 0, 0]} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </ChartCard>
         </div>
       </main>
     </div>
   );
+}
+
+/* ---------- Helper Components ---------- */
+function SummaryCard({ title, value, icon, change, trend }: any) {
+  return (
+    <Card className="bg-[#161616] border border-[#232323] hover:border-[#2a2a2a]">
+      <CardHeader>
+        <CardDescription>{title}</CardDescription>
+        <CardTitle className="text-3xl font-bold text-white mt-2">{value}</CardTitle>
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          {icon} <span className="text-[#d9fc09]">{change}</span>
+        </div>
+      </CardHeader>
+    </Card>
+  );
+}
+
+function ChartCard({ title, children }: any) {
+  return (
+    <Card className="bg-[#161616] border border-[#232323] h-[400px]">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <div className="p-4 h-[300px]">{children}</div>
+    </Card>
+  );
+}
+
+function DataTable({ title, dataType, data }: any) {
+  return (
+    <div className="bg-[#161616] rounded-xl border border-[#232323] p-5">
+      <h2 className="text-lg font-bold mb-4 text-white">{title}</h2>
+      <Table className="border border-[#232323] rounded-xl">
+        <TableHeader>
+          <TableRow>
+            {dataType === "policy" ? (
+              <>
+                <TableHead className="text-gray-400">Policy #</TableHead>
+                <TableHead className="text-gray-400">Vehicle</TableHead>
+                <TableHead className="text-gray-400">Plan</TableHead>
+                <TableHead className="text-gray-400">Coverage</TableHead>
+                <TableHead className="text-gray-400">Premium</TableHead>
+                <TableHead className="text-gray-400">Status</TableHead>
+              </>
+            ) : (
+              <>
+                <TableHead className="text-gray-400">Claim #</TableHead>
+                <TableHead className="text-gray-400">Vehicle</TableHead>
+                <TableHead className="text-gray-400">Date</TableHead>
+                <TableHead className="text-gray-400">Amount</TableHead>
+                <TableHead className="text-gray-400">Status</TableHead>
+              </>
+            )}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((d: any) => (
+            <TableRow key={d._id}>
+              {dataType === "policy" ? (
+                <>
+                  <TableCell>{d.policyNumber}</TableCell>
+                  <TableCell>{d.bodaRegNo}</TableCell>
+                  <TableCell>{d.plan?.name}</TableCell>
+                  <TableCell>{d.coverageAmount?.toLocaleString()} KES</TableCell>
+                  <TableCell>{d.premiumPaid?.toLocaleString()} KES</TableCell>
+                  <TableCell>{d.status}</TableCell>
+                </>
+              ) : (
+                <>
+                  <TableCell>{d.claimNumber}</TableCell>
+                  <TableCell>{d.bodaRegNo}</TableCell>
+                  <TableCell>{new Date(d.incidentDate).toLocaleDateString()}</TableCell>
+                  <TableCell>{d.amountClaimed?.toLocaleString()} KES</TableCell>
+                  <TableCell>{d.status}</TableCell>
+                </>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+/* ---------- Data Helpers ---------- */
+function aggregateMonthlyData(policies: Policy[], claims: Claim[]) {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return months.map((month, i) => ({
+    month,
+    policies: policies.filter(p => new Date(p.startDate).getMonth() === i).length,
+    claims: claims.filter(c => new Date(c.incidentDate).getMonth() === i).length,
+  }));
+}
+
+function aggregateClaimStatus(claims: Claim[]) {
+  const counts: Record<string, number> = {};
+  claims.forEach(c => (counts[c.status] = (counts[c.status] || 0) + 1));
+  return Object.entries(counts).map(([name, value]) => ({ name, value }));
+}
+
+function vehicleData(policies: Policy[]) {
+  const vehicleMap: Record<string, number> = {};
+  policies.forEach(p => (vehicleMap[p.bodaRegNo] = (vehicleMap[p.bodaRegNo] || 0) + 1));
+  return Object.entries(vehicleMap).map(([bodaRegNo, count]) => ({ bodaRegNo, count }));
 }

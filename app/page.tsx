@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
 
+
 type Country = {
   label: string;
   code: string;
@@ -11,11 +12,13 @@ type Country = {
   validation: RegExp;
 };
 
+
 const COUNTRIES: Country[] = [
   { label: "KE (+254)", code: "KE", dialCode: "+254", validation: /^\d{9}$/ },
   { label: "US (+1)", code: "US", dialCode: "+1", validation: /^\d{10}$/ },
   { label: "UK (+44)", code: "GB", dialCode: "+44", validation: /^\d{10}$/ },
 ];
+
 
 type OnboardingFields = {
   name: string;
@@ -26,6 +29,7 @@ type OnboardingFields = {
   coverageLevel: string;
 };
 
+
 const onboardingFieldOrder: (keyof OnboardingFields)[] = [
   "name",
   "photoUrl",
@@ -35,11 +39,13 @@ const onboardingFieldOrder: (keyof OnboardingFields)[] = [
   "coverageLevel",
 ];
 
+
 export default function Home() {
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
   const [msisdn, setMsisdn] = useState<string>("");
   const [showOtp, setShowOtp] = useState<boolean>(false);
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
+  const [backendOtp, setBackendOtp] = useState<string>("");
   const [mode, setMode] = useState<"signup" | "login">("login");
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -71,6 +77,7 @@ export default function Home() {
       : "https://hima-g018.onrender.com/api/v1";
   const getFullPhone = () => country.dialCode + msisdn;
 
+
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (showOtp && resendCooldown > 0) {
@@ -80,6 +87,7 @@ export default function Home() {
     }
     return () => clearInterval(timer);
   }, [showOtp, resendCooldown]);
+
 
   const handleSubmit = async (e: React.FormEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -107,6 +115,10 @@ export default function Home() {
       });
       setLoading(false);
       if (res2.ok) {
+        const otpData = await res2.json();
+        if (otpData.otp) {
+          setBackendOtp(otpData.otp);
+        }
         setShowOtp(true);
         setResendCooldown(RESEND_COOLDOWN_SECONDS);
       } else {
@@ -120,6 +132,10 @@ export default function Home() {
       });
       setLoading(false);
       if (res.ok) {
+        const otpData = await res.json();
+        if (otpData.otp) {
+          setBackendOtp(otpData.otp);
+        }
         setShowOtp(true);
         setResendCooldown(RESEND_COOLDOWN_SECONDS);
       } else {
@@ -133,6 +149,7 @@ export default function Home() {
       }
     }
   };
+
 
   const handleResendOtp = async () => {
     if (resendCooldown > 0) return;
@@ -150,6 +167,10 @@ export default function Home() {
     });
     setResendLoading(false);
     if (res.ok) {
+      const otpData = await res.json();
+      if (otpData.otp) {
+        setBackendOtp(otpData.otp);
+      }
       toast.success("OTP resent!");
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
       setOtp(["", "", "", "", "", ""]);
@@ -158,6 +179,7 @@ export default function Home() {
     }
   };
 
+
   const handleOtpVerification = async (
     e: React.FormEvent<HTMLButtonElement>
   ) => {
@@ -165,6 +187,7 @@ export default function Home() {
     if (otp.join("").length !== 6) return;
     setVerifying(true);
     setLoading(true);
+
 
     let endpoint: string;
     let body: Record<string, unknown>;
@@ -183,11 +206,13 @@ export default function Home() {
       };
     }
 
+
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+
 
     if (res.ok) {
       const data = await res.json();
@@ -203,6 +228,7 @@ export default function Home() {
         })
       );
       localStorage.setItem("user_phone", data.user.phone);
+
 
       if (mode === "signup") {
         setTimeout(() => {
@@ -222,6 +248,7 @@ export default function Home() {
     }
   };
 
+
   const handleOnboarding = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setOnboardingLoading(true);
@@ -239,6 +266,7 @@ export default function Home() {
     }
   };
 
+
   const setOtpAt = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
     setOtp((prev) => {
@@ -250,11 +278,13 @@ export default function Home() {
     if (!value && index > 0) otpInputs[index - 1].current?.focus();
   };
 
+
   const Spinner = () => (
     <div className="flex items-center justify-center">
       <div className="w-14 h-14 border-4 border-[#d9fc09] border-t-transparent animate-spin rounded-full" />
     </div>
   );
+
 
   const wittyMessages = [
     "Polishing your shiny new wallet...",
@@ -264,7 +294,7 @@ export default function Home() {
     "Summoning crypto wizards. Please stand by...",
     "Whispering sweet nothings to the blockchains...",
     "Gently nudging validators to move faster...",
-    "Please don’t close this tab — your assets thank you!",
+    "Please don't close this tab — your assets thank you!",
     "Performing cryptographic dance. Don&apost blink!",
   ];
   const wittyMsg =
@@ -273,6 +303,7 @@ export default function Home() {
   const allOnboardingFilled = onboardingFieldOrder.every(
     (k) => onboarding[k] && onboarding[k].trim()
   );
+
 
   return (
     <div
@@ -462,6 +493,12 @@ export default function Home() {
             >
               Enter OTP
             </label>
+            {backendOtp && (
+              <div className="bg-[#1d1c1d] border-2 border-[#d9fc09] rounded-lg p-4 mb-4">
+                <p className="text-gray-400 text-xs text-center mb-2">Development Mode - OTP from Backend:</p>
+                <p className="text-[#d9fc09] text-2xl font-mono text-center font-bold tracking-wider">{backendOtp}</p>
+              </div>
+            )}
             <div className="flex gap-2 w-full justify-between">
               {otp.map((v, i) => (
                 <input
@@ -527,6 +564,7 @@ export default function Home() {
                       setMode("login");
                       setShowOtp(false);
                       setOtp(["", "", "", "", "", ""]);
+                      setBackendOtp("");
                     }}
                   >
                     Login
@@ -543,6 +581,7 @@ export default function Home() {
                       setMode("signup");
                       setShowOtp(false);
                       setOtp(["", "", "", "", "", ""]);
+                      setBackendOtp("");
                     }}
                   >
                     Sign Up
