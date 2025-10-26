@@ -45,7 +45,7 @@ interface Policy {
 }
 
 const baseUrl =
-  process.env.NODE_ENV === "development" ? "http://localhost:8000" : "";
+  process.env.NODE_ENV === "development" ? "http://localhost:8000" : "https://hima-g018.onrender.com/";
 
 export default function ClaimsPage() {
   const [claims, setClaims] = useState<Claim[]>([]);

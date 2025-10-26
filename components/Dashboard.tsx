@@ -24,7 +24,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const baseUrl = process.env.NODE_ENV === "development" ? "http://localhost:8000" : "";
+const baseUrl = process.env.NODE_ENV === "development" ? "http://localhost:8000" : "https://hima-g018.onrender.com/";
 
 interface Policy {
   _id: string;
