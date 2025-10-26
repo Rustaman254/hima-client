@@ -3,14 +3,29 @@
 import { useEffect, useState } from "react";
 import Header from "@/components/shared-components/Header";
 import {
-  BadgeHelp, CheckCircle2, Clock, Copy, Eye, MoreVertical, Search, X,
+  BadgeHelp,
+  Copy,
+  Eye,
+  MoreVertical,
+  Search,
+  X,
 } from "lucide-react";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
 interface Claim {
@@ -29,7 +44,8 @@ interface Policy {
   status: string;
 }
 
-const baseUrl = process.env.NODE_ENV == "development" ? "http://localhost:8000" : "";
+const baseUrl =
+  process.env.NODE_ENV === "development" ? "http://localhost:8000" : "";
 
 export default function ClaimsPage() {
   const [claims, setClaims] = useState<Claim[]>([]);
@@ -43,23 +59,29 @@ export default function ClaimsPage() {
   const [amountClaimed, setAmountClaimed] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
+  const [token, setToken] = useState<string | null>(null);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("jwt");
-    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  // Safe guard for SSR: Retrieve token only in browser
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedToken = localStorage.getItem("jwt");
+      setToken(savedToken);
+    }
+  }, []);
+
+  const getAuthHeaders = (): Record<string, string> => {
+    return {
+      "Content-Type": "application/json",
+      Authorization: token ? `Bearer ${token}` : "",
+    };
   };
 
-  console.log(getAuthHeaders())
   useEffect(() => {
+    if (!token) return;
+
     (async () => {
       setLoading(true);
       try {
-        const token = localStorage.getItem("jwt");
-        if (!token) {
-          console.error("No JWT token found in localStorage.");
-          return;
-        }
-
         const [claimRes, policyRes] = await Promise.all([
           fetch(`${baseUrl}/api/v1/insurance/claims`, { headers: getAuthHeaders() }),
           fetch(`${baseUrl}/api/v1/insurance/policies`, { headers: getAuthHeaders() }),
@@ -67,6 +89,7 @@ export default function ClaimsPage() {
 
         const claimData = await claimRes.json();
         const policyData = await policyRes.json();
+
         setClaims(claimData.claims || []);
         setPolicies(policyData.policies || []);
       } catch (error) {
@@ -75,7 +98,7 @@ export default function ClaimsPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [token]);
 
   const handleCreateClaim = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,7 +203,9 @@ export default function ClaimsPage() {
                   </TableCell>
                   <TableCell>{c.amountClaimed} KES</TableCell>
                   <TableCell>
-                    <Badge className={`${getStatusColor(c.status)} border`}>{c.status}</Badge>
+                    <Badge className={`${getStatusColor(c.status)} border`}>
+                      {c.status}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -194,7 +219,9 @@ export default function ClaimsPage() {
                           <Eye size={14} className="mr-2" /> View
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => navigator.clipboard.writeText(c.claimNumber)}
+                          onClick={() =>
+                            navigator.clipboard.writeText(c.claimNumber)
+                          }
                           className="cursor-pointer"
                         >
                           <Copy size={14} className="mr-2" /> Copy ID
@@ -223,6 +250,7 @@ export default function ClaimsPage() {
             </div>
 
             <form onSubmit={handleCreateClaim} className="space-y-4">
+              {/* Policy */}
               <div>
                 <label className="text-sm text-gray-400">Select Policy</label>
                 <select
@@ -240,6 +268,7 @@ export default function ClaimsPage() {
                 </select>
               </div>
 
+              {/* Claim Fields */}
               <div>
                 <label className="text-sm text-gray-400">Claim Type</label>
                 <Input
