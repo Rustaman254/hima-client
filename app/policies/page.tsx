@@ -679,9 +679,10 @@ export default function PoliciesPage() {
                     <Alert className="bg-blue-500/10 border-blue-500/20">
                       <AlertTitle className="text-blue-400">Payment Instructions</AlertTitle>
                       <AlertDescription className="text-gray-300">
-                        After clicking "Confirm", you'll receive a payment prompt on your phone.
+                        After clicking &quot;Confirm&quot;, you&apos;ll receive a payment prompt on your phone.
                         Enter your M-PESA/Airtel PIN to complete the transaction.
                       </AlertDescription>
+
                     </Alert>
                   </div>
                 )}
