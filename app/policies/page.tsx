@@ -182,6 +182,7 @@ function openExplorer(hash?: string) {
 }
 
 export default function PoliciesPage() {
+  const [token, setToken] = useState<string | null>(null);
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -189,6 +190,8 @@ export default function PoliciesPage() {
   const [viewMode, setViewMode] = useState<"table" | "list">("table");
   const [inputOpen, setInputOpen] = useState<boolean>(false);
   const [summaryOpen, setSummaryOpen] = useState<boolean>(false);
+  const [user, setUser] = useState<{ walletAddress?: string } | null>(null);
+  const [rider, setRider] = useState<string>("");
   const [form, setForm] = useState<FormData>({
     bodaRegNo: "",
     plan: "",
@@ -202,10 +205,20 @@ export default function PoliciesPage() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string>("");
 
-  const token = localStorage.getItem('jwt') || "";
-  const userStr = localStorage.getItem('user') || '{}';
-  const user = JSON.parse(userStr);
-  const rider = user?.walletAddress || "";
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedToken = localStorage.getItem("jwt");
+      const userStr = localStorage.getItem("user");
+      const parsedUser = userStr ? JSON.parse(userStr) : {};
+
+      setToken(storedToken);
+      setUser(parsedUser);
+      setRider(parsedUser.walletAddress || "");
+    }
+  }, []);
+
+  // const user = JSON.parse(userStr);
+  // const rider = user?.walletAddress || "";
 
 
   const fetchPolicies = useCallback(async () => {
@@ -229,13 +242,20 @@ export default function PoliciesPage() {
   }, [token]);
 
   useEffect(() => {
+    if (token === null) {
+      // Still loading from localStorage; skip for now
+      return;
+    }
+
     if (!token) {
       setPaymentError("No JWT token found. Please log in again.");
       setLoading(false);
       return;
     }
+
     fetchPolicies();
   }, [token, fetchPolicies]);
+
 
   // Fetch available plans
   useEffect(() => {
