@@ -1,29 +1,27 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   BadgeCheck,
   Calendar,
   CreditCard,
-  FileText,
   List,
   LayoutGrid,
   Download,
   Eye,
   MoreVertical,
-  Filter,
   Search,
   ExternalLink,
   ShieldCheck,
   CheckCircle2,
   Clock,
   Copy,
-  FileCheck,
   AlertTriangle,
   RefreshCw,
   X,
   Phone,
   Wallet
 } from "lucide-react";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -209,29 +207,17 @@ export default function PoliciesPage() {
   const user = JSON.parse(userStr);
   const rider = user?.walletAddress || "";
 
-  // Fetch user policies
-  useEffect(() => {
-    if (!token) {
-      setPaymentError("No JWT token found. Please log in again.");
-      setLoading(false);
-      return;
-    }
 
-    fetchPolicies();
-  }, [token]);
-
-  const fetchPolicies = async () => {
+  const fetchPolicies = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/insurance/policies/me`, {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
-
-      if (!res.ok) throw new Error('Failed to fetch policies');
-
+      if (!res.ok) throw new Error("Failed to fetch policies");
       const data = await res.json();
       setPolicies((data.policies || []) as Policy[]);
       setLoading(false);
@@ -240,7 +226,16 @@ export default function PoliciesPage() {
       setLoading(false);
       setPaymentError("Failed to fetch policies. Please try again.");
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) {
+      setPaymentError("No JWT token found. Please log in again.");
+      setLoading(false);
+      return;
+    }
+    fetchPolicies();
+  }, [token, fetchPolicies]);
 
   // Fetch available plans
   useEffect(() => {
@@ -447,14 +442,15 @@ export default function PoliciesPage() {
         setPolling(true);
         setPaymentStatus("waiting for confirmation...");
       }
-    } catch (err: any) {
-      console.error("Error initiating policy:", err);
-      setPaymentError(err.message || "Failed to initiate policy. Please try again.");
+    } catch (err: unknown) {
+      const error = err as Error;
+      console.error("Error initiating policy:", error);
+      setPaymentError(error.message || "Failed to initiate policy. Please try again.");
       setSummaryOpen(false);
     }
   };
 
-  const handleCompletePolicy = async () => {
+  const handleCompletePolicy = useCallback(async () => {
     if (!initResult?.policyId || !initResult?.transactionId) {
       setPaymentError("Missing policy or transaction ID. Please try initiating again.");
       return;
@@ -464,14 +460,14 @@ export default function PoliciesPage() {
       const res = await fetch(`${API_BASE_URL}/insurance/policies/complete`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           policyId: initResult.policyId,
           transactionId: initResult.transactionId,
-          chain: "BASE" // or get from config
-        })
+          chain: "BASE",
+        }),
       });
 
       if (!res.ok) {
@@ -480,19 +476,17 @@ export default function PoliciesPage() {
       }
 
       const result: CompleteResult = await res.json();
-      console.log("Complete Policy Response:", JSON.stringify(result, null, 2));
-
       setCompleteResult(result);
       setInitResult(null);
       setPaymentStatus("");
-
-      // Refresh policies list
       await fetchPolicies();
-    } catch (err: any) {
-      console.error("Error completing policy:", err);
-      setPaymentError(err.message || "Failed to complete policy. Please try again or contact support.");
+    } catch (err: unknown) {
+      const error = err as Error;
+      console.error("Error completing policy:", error);
+      setPaymentError(error.message || "Failed to complete policy. Please try again or contact support.");
     }
-  };
+  }, [initResult, token, fetchPolicies]);
+
 
   const filteredPolicies = policies.filter(policy =>
     (policy.policyNumber || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -794,7 +788,7 @@ export default function PoliciesPage() {
             <AlertTitle className="text-white">Waiting for Payment Confirmation</AlertTitle>
             <AlertDescription className="text-gray-300">
               <div className="space-y-2 mt-2">
-                <p>Please complete the payment on your phone. We're checking for confirmation...</p>
+                <p>Please complete the payment on your phone. We&apos;re checking for confirmation...</p>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-gray-400">Transaction ID:</span>
                   <span className="font-mono text-[#d9fc09]">{initResult?.transactionId}</span>
