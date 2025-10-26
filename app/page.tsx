@@ -15,8 +15,8 @@ type Country = {
 
 const COUNTRIES: Country[] = [
   { label: "KE (+254)", code: "KE", dialCode: "+254", validation: /^\d{9}$/ },
-  { label: "US (+1)", code: "US", dialCode: "+1", validation: /^\d{10}$/ },
-  { label: "UK (+44)", code: "GB", dialCode: "+44", validation: /^\d{10}$/ },
+  // { label: "US (+1)", code: "US", dialCode: "+1", validation: /^\d{10}$/ },
+  // { label: "UK (+44)", code: "GB", dialCode: "+44", validation: /^\d{10}$/ },
 ];
 
 
